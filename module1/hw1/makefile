@@ -1,22 +1,11 @@
-# Target executable name
-TARGET = SoojiK.CS5600.LearnC
+SoojiK.CS5600.LearnC: SoojiK.CS5600.LearnC.o mpg2km.o
+	clang -o SoojiK.CS5600.LearnC SoojiK.CS5600.LearnC.o mpg2km.o
 
-# Compiler
-CC = clang
+SoojiK.CS5600.LearnC.o: SoojiK.CS5600.LearnC.c mpg2km.h
+	clang -c SoojiK.CS5600.LearnC.c
 
-# Compiler flags
-CFLAGS = -Wall -Wextra -std=c11
+mpg2km.o: mpg2km.c mpg2km.h
+	clang -c mpg2km.c
 
-# Source files
-SRCS = SoojiK.CS5600.LearnC.c mpg2km.c
-
-# Object files
-OBJS = $(SRCS:.c=.o)
-
-# Build rule
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
-
-# Clean rule
 clean:
-	rm -f $(TARGET) $(OBJS)
+	rm -f SoojiK.CS5600.LearnC SoojiK.CS5600.LearnC.o mpg2km.o
