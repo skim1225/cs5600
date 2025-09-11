@@ -12,6 +12,7 @@
 
 static char APPEND[] = "-a";
 
+// TODO: IMPLEMENT A PSEUDO RNG ALGORITHM
 int genRand(int min, int max) {
     return 0;
 }
