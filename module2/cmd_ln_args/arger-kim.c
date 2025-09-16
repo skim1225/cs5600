@@ -12,90 +12,89 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int OFFSET = 32;
+static const int OFFSET = 32;
 
 int is_upper(char c) {
-    if (c >= 'A' && c <= 'Z') {
-        return 1;
-    } else {
-        return 0;
-    }
+    return (c >= 'A' && c <= 'Z');
 }
 
 int is_lower(char c) {
-    if (c >= 'a' && c <= 'z') {
-        return 1;
-    } else {
-        return 0;
-    }
+    return (c >= 'a' && c <= 'z');
+}
+
+void error_message(void) {
+    puts("Invalid choice. Valid flags are:");
+    puts("-u: display text in all upper case.");
+    puts("-l: display text in all lower case.");
+    puts("-cap: display text with the first letter of each word capitalized.");
+    exit(-1);
 }
 
 int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        error_message();
+    }
+
     char *choice = argv[1];
-    char *word;
-    int x;
-    // to all uppercase
+
+    // display text in all uppercase
     if (strcmp(choice, "-u") == 0) {
         for (int i = 2; i < argc; i++) {
-            word = argv[i];
-            x = 0;
-            while (word[x] != '\0') {
-                if (is_lower(word[x])) {
-                    word[x] -= OFFSET;
+            char *word = argv[i];
+            for (int j = 0; word[j] != '\0'; j++) {
+                char c = word[j];
+                if (is_lower(c)) {
+                    c -= OFFSET;
                 }
-                printf("%c", word[x]);
-                x++;
+                putchar(c);
             }
             if (i < argc - 1) {
-                printf(" ");
+                putchar(' ');
             }
         }
-        printf("\n");
-    // to all lowercase
+        putchar('\n');
+        return 0;
+    // display text in all lowercase
     } else if (strcmp(choice, "-l") == 0) {
         for (int i = 2; i < argc; i++) {
-            word = argv[i];
-            x = 0;
-            while (word[x] != '\0') {
-                if (is_upper(word[x])) {
-                    word[x] += OFFSET;
+            char *word = argv[i];
+            for (int j = 0; word[j] != '\0'; j++) {
+                char c = word[j];
+                if (is_upper(c)) {
+                    c += OFFSET;
                 }
-                printf("%c", word[x]);
-                x++;
+                putchar(c);
             }
             if (i < argc - 1) {
-                printf(" ");
+                putchar(' ');
             }
         }
-        printf("\n");
-    // capitalize 1st letter of each word
+        putchar('\n');
+        return 0;
+    // capitalize first char of each word only
     } else if (strcmp(choice, "-cap") == 0) {
-        // check the first element
-        if (is_lower(word[0])) {
-            word[0] -= OFFSET;
-        }
-        x = 1;
-        // loop over all other elements and check if previous char is " "
-        while (word[x] != '\0') {
-            // check if 1st letter of word
-            if (word[x-1] == ' ') {
-                if (is_lower(word[x])) {
-                    word[x] -= OFFSET;
+        for (int i = 2; i < argc; i++) {
+            char *word = argv[i];
+            if (word[0] != '\0') {
+                char c0 = word[0];
+                if (is_lower(c0)) {
+                    c0 -= OFFSET;
                 }
-            } else {
-                if (is_upper(word[x])) {
-                    word[x] += OFFSET;
+                putchar(c0);
+                for (int j = 1; word[j] != '\0'; j++) {
+                    char c = word[j];
+                    if (is_upper(c)) c += OFFSET;
+                    putchar(c);
                 }
             }
-            x++;
+            if (i < argc - 1) {
+                putchar(' ');
+            }
         }
-        printf("%c", word[x]);
+        putchar('\n');
+        return 0;
     } else {
-        puts("Invalid choice. Valid flags are:");
-        puts("-u: display text in all upper case.");
-        puts("-l: display text in all lower case.");
-        puts("-cap: display text with the first letter of each word capitalized.");
-        exit(-1);
+        error_message();
     }
     return 0;
 }
