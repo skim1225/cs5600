@@ -1,0 +1,28 @@
+#!/bin/sh
+# dumper - test script for arger-kim
+# Demonstrates calling the program with various flags and checking exit codes.
+
+echo "Uppercase test: ./arger-kim -u help is on the way"
+./arger-kim -u help is on the way
+echo "Exit code: $?"
+echo
+
+echo "Lowercase test: ./arger-kim -l HELP IS ON THE WAY"
+./arger-kim -l HELP IS ON THE WAY
+echo "Exit code: $?"
+echo
+
+echo "Capitalize test: ./arger-kim -cap help is on the WAY"
+./arger-kim -cap help is on the WAY
+echo "Exit code: $?"
+echo
+
+echo "Invalid flag test: ./arger-kim -bad test input"
+./arger-kim -bad test input
+echo "Exit code: $?"
+echo
+
+echo "Missing args test: ./arger-kim -u"
+./arger-kim -u
+echo "Exit code: $?"
+echo
