@@ -1,5 +1,5 @@
 /*
-* alloc-mem-kim.c / Memory Management
+ * alloc-mem-kim.c / Memory Management
  *
  * Sooji Kim / CS5600 / Northeastern University
  * Fall 2025 / Sep 16, 2025
