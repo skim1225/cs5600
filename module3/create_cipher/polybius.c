@@ -13,7 +13,7 @@
 #include "polybius.h"
 
 // takes only uppercase chars and returns the encrypted text
-char* get_cipher(char c, polybius_square_t *table) {
+char* get_cipher(char c, const polybius_square_t *table) {
     char *encrypted = (char *)malloc(sizeof(char) * 3);
     if ( c == 'J' ) {
         c = 'I';
@@ -32,7 +32,7 @@ char* get_cipher(char c, polybius_square_t *table) {
 
 // ignores special chars
 // same int for I and J
-char* pbEncode(const char *plaintext, polybius_square_t *table) {
+char* pbEncode(const char *plaintext, const polybius_square_t *table) {
     int len = strlen(plaintext);
     char *ciphertext = (char *)malloc(sizeof(char) * (len * 2 + 1));
     int ciphertext_pos = 0;
@@ -56,7 +56,7 @@ char* pbEncode(const char *plaintext, polybius_square_t *table) {
 }
 
 // returns plaintext in all caps
-char* pbDecode(const char *ciphertext, polybius_square_t *table) {
+char* pbDecode(const char *ciphertext, const polybius_square_t *table) {
     int len = strlen(ciphertext);
     char *decrypted = (char *)malloc(sizeof(char) * len);
     int decrypted_pos = 0;
