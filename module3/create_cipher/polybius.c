@@ -7,14 +7,44 @@
  * Library for encrypting and decrypting strings using the polybius square
  * encryption algorithm.
  */
+
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include "polybius.h"
 
-// takes only uppercase chars and returns the encrypted text
-char* get_cipher(char c, const polybius_square_t *table) {
-    char *encrypted = (char *)malloc(sizeof(char) * 3);
+/**
+ * @brief Encode a single uppercase letter using the Polybius square.
+ *
+ * Converts an uppercase alphabetic character @p c into its Polybius
+ * coordinates and writes the two digit characters ('1'..'5') into
+ * @p encrypted. In this cipher, 'J' is treated as 'I'.
+ *
+ * @param c         Uppercase letter 'A'..'Z' to encode. 'J' is mapped to 'I'.
+ * @param table     Pointer to a 5x5 Polybius square (must not be NULL).
+ * @param encrypted Output buffer with capacity for at least 2 bytes
+ *                  (must not be NULL). On success:
+ *                  - encrypted[0] == '1' + row (0..4)
+ *                  - encrypted[1] == '1' + col (0..4)
+ *
+ * @return int      0 on success; 1 on failure (e.g., @p table or @p encrypted
+ *                  is NULL, or @p c is not found in @p table).
+ *
+ * @pre The caller guarantees @p c is an uppercase alphabetic character.
+ * @pre @p encrypted points to at least 2 writable bytes.
+ * @pre @p table represents the same alphabet variant used by the caller
+ *      (e.g., I/J merged with 'J' omitted).
+ *
+ * @post On success, exactly two bytes are written to @p encrypted and no
+ *       other memory is modified.
+ */
+int get_cipher(char c, const polybius_square_t *table, char encrypted[2]) {
+    // validate input
+    if (table == NULL || encrypted == NULL) {
+        return 1;
+    }
+    // I and J both represented by I in this cipher
     if ( c == 'J' ) {
         c = 'I';
     }
@@ -23,11 +53,12 @@ char* get_cipher(char c, const polybius_square_t *table) {
             if (c == table->square[i][j]) {
                 encrypted[0] = '1' + i;
                 encrypted[1] = '1' + j;
-                encrypted[2] = '\0';
-                return encrypted;
+                return 0;
             }
         }
     }
+    // if char not found in table (shouldn't ever be reached)
+    return 1;
 }
 
 // ignores special chars
