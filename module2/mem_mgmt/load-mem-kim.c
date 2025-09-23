@@ -53,9 +53,68 @@ int storeMem2Blk(dynBlock *b, const int *src, size_t n) {
     }
 }
 
+// helper func to free dynblock heap mem
+void freeDynBlock(dynBlock *b) {
+    if (!b) return;
+    free(b->data);
+    free(b);
+}
+
 int main() {
-    // read ints from blocks.data
-    // save each line into a separate dynBlock
-    // demonstrate data was read
+    FILE *fp = fopen("blocks.data", "r");
+    if (fp == NULL) {
+        perror("blocks.data");
+        return 1;
+    }
+
+    enum { MAX_LINE = 4096 };
+    char buf[MAX_LINE];
+    int num_lines = 0;
+
+    while (fgets(buf, sizeof buf, fp)) {
+        num_lines++;
+
+        // count tokens on this line
+        int count = 0;
+        char *copy = strdup(buf);
+        if (!copy) {
+            perror("strdup");
+            fclose(fp);
+            return 1;
+        }
+        char *tok = strtok(copy, " \t\r\n");
+        while (tok) {
+            count++;
+            tok = strtok(NULL, " \t\r\n");
+        }
+        free(copy);
+        if (count == 0) continue;
+
+        // allocate dynBlock
+        dynBlock *blk = allocDynBlock(count);
+        if (!blk) {
+            fprintf(stderr, "Line %d: allocDynBlock(%d) failed\n", num_lines, count);
+            continue;
+        }
+
+        // fill block directly
+        int i = 0;
+        tok = strtok(buf, " \t\r\n");
+        while (tok && i < count) {
+            blk->data[i++] = atoi(tok);
+            tok = strtok(NULL, " \t\r\n");
+        }
+
+        // print all integers in this block
+        printf("Line %d (%d ints):", num_lines, count);
+        for (int j = 0; j < count; j++) {
+            printf(" %d", blk->data[j]);
+        }
+        printf("\n");
+
+        freeDynBlock(blk);
+    }
+
+    fclose(fp);
     return 0;
 }

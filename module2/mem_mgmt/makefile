@@ -1,8 +1,11 @@
 # default target
-all: allocmem
+all: allocmem loadmem
 
 allocmem: alloc-mem-kim.c
 	clang -o allocmem alloc-mem-kim.c
 
+loadmem: load-mem-kim.c
+	clang -o loadmem load-mem-kim.c
+
 clean:
-	rm -f allocmem *.o
+	rm -f allocmem loadmem *.o
