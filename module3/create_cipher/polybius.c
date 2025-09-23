@@ -124,25 +124,62 @@ char* pbEncode(const char *plaintext, const polybius_square_t *table) {
     return ciphertext;
 }
 
-// returns plaintext in all caps
+/**
+ * @brief Decode a Polybius-digit ciphertext into plaintext (letters uppercase).
+ *
+ * Interprets the input @p ciphertext as a sequence where any digit in the
+ * range '1'..'5' begins a two-digit coordinate (row, col) into the 5×5
+ * Polybius @p table. Each valid digit pair is converted to the corresponding
+ * uppercase letter from the table. Any non-digit characters are **not
+ * decoded** and are copied through to the output unchanged.
+ *
+ * The function allocates a new, NUL-terminated string for the result; the
+ * caller owns this buffer and must free it.
+ *
+ * @param ciphertext  NUL-terminated input string containing Polybius digits
+ *                    and/or other characters (must not be NULL).
+ * @param table       Pointer to a 5×5 Polybius square used for decoding
+ *                    (must not be NULL).
+ *
+ * @return char*      Newly allocated decoded string on success, or NULL if
+ *                    allocation fails.
+ *
+ * @pre @p ciphertext and @p table are non-NULL. The table indexes [0..4][0..4]
+ *      correspond to digit pairs '1'..'5' for rows and columns, respectively.
+ * @post The returned string is NUL-terminated. Letters produced from digit
+ *       pairs are uppercase; non-digit input characters appear unchanged.
+ *
+ * @warning This implementation assumes that any digit '1'..'5' in @p ciphertext
+ *          is immediately followed by a second digit '1'..'5' to form a valid
+ *          pair. Supplying a lone trailing digit or an invalid second digit
+ *          results in undefined behavior.
+ *
+ * @note Typical conventions merge 'I'/'J' in the table; decoding reflects
+ *       whatever mapping is present in @p table.
+ *
+ */
 char* pbDecode(const char *ciphertext, const polybius_square_t *table) {
     int len = strlen(ciphertext);
-    char *decrypted = (char *)malloc(sizeof(char) * len);
+    char *decrypted = (char *)malloc(sizeof(char) * len + 1);
+    if (decrypted == NULL) {
+        printf("There was an error during memory allocation.\n");
+        return NULL;
+    }
     int decrypted_pos = 0;
-    // TODO: iterate over ciphertext string
     for (int i = 0; i < len; i++) {
-        // TODO: if it's a num, get 2 chars and convert to letter
-        if (ciphertext[i] >= '0' && ciphertext[i] <= '9') {
-            int row = ciphertext[i] - '0';
-            int col = ciphertext[i + 1] - '0';
+        // if it's a num, get 2 chars and convert to letter
+        if (ciphertext[i] >= '1' && ciphertext[i] <= '5') {
+            int row = ciphertext[i] - '1';
+            int col = ciphertext[i + 1] - '1';
             decrypted[decrypted_pos] = table->square[row][col];
             i++;
             decrypted_pos += 1;
-        // TODO: else, it's a special char and just add to the output
+        // else, it's a special char and just add to the output
         } else {
             decrypted[decrypted_pos] = ciphertext[i];
             decrypted_pos += 1;
         }
     }
+    decrypted[decrypted_pos] = '\0';
     return decrypted;
 }

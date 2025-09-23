@@ -25,7 +25,7 @@ typedef struct {
  * @param table Pointer to a Polybius square.
  * @return      Dynamically allocated string (2 chars + null terminator).
  */
-char* get_cipher(char c, const polybius_square_t *table, char encrypted[2]);
+int get_cipher(char c, const polybius_square_t *table, char encrypted[2]);
 
 /**
  * Encodes a plaintext string into Polybius cipher text.
