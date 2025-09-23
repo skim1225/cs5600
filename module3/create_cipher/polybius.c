@@ -61,28 +61,66 @@ int get_cipher(char c, const polybius_square_t *table, char encrypted[2]) {
     return 1;
 }
 
-// ignores special chars
-// same int for I and J
+/**
+ * @brief Encode a plaintext string using the Polybius square.
+ *
+ * For each alphabetic character in @p plaintext, the character is uppercased
+ * and encoded into a two-digit coordinate ('1'..'5','1'..'5') using the
+ * provided Polybius @p table via ::get_cipher. Non-alphabetic characters are
+ * **not encoded**; they are copied through to the output unchanged.
+ *
+ * The returned ciphertext is a newly allocated, NUL-terminated string whose
+ * length is at most (2 × strlen(@p plaintext)) + 1 bytes. The caller owns the
+ * memory and must free it.
+ *
+ * @param plaintext  NUL-terminated input string to encode (must not be NULL).
+ * @param table      Pointer to a 5×5 Polybius square used for encoding
+ *                   (must not be NULL).
+ *
+ * @return char*     Pointer to a newly allocated ciphertext string on success;
+ *                   NULL on invalid arguments, allocation failure, or if an
+ *                   internal character-encoding step fails.
+ *
+ * @pre @p plaintext and @p table are non-NULL.
+ * @post On success, the returned string is NUL-terminated and contains digit
+ *       pairs for letters; non-letters appear unchanged.
+ *
+ * @note This function relies on ::get_cipher to map letters to digit pairs
+ *       (with 'J' treated as 'I' by convention).
+ */
 char* pbEncode(const char *plaintext, const polybius_square_t *table) {
+    // input validation
+    if (plaintext == NULL || table == NULL) {
+        printf("Invalid arguments.\n");
+        return NULL;
+    }
     int len = strlen(plaintext);
     char *ciphertext = (char *)malloc(sizeof(char) * (len * 2 + 1));
+    if (ciphertext == NULL) {
+        printf("There was an error during memory allocation.\n");
+        return NULL;
+    }
     int ciphertext_pos = 0;
-    // TODO: ITERATE OVER STRING
     for (int i = 0; i < len; i++) {
-        // TODO: IF UPPER, ITERATE OVER TABLE AND ADD ROW AND COL TO OUTPUT
-        if (isupper(plaintext[i])) {
-            ciphertext[ciphertext_pos] = get_cipher(plaintext[i], table);
-            ciphertext_pos += 2;
-        // TODO: IF LOWER, TOUPPER() THEN ITERATE OVER TABLE AND ADD ROW AND COL TO OUTPUT
-        } else if (islower(plaintext[i])) {
-            ciphertext[ciphertext_pos] = get_cipher(toupper(plaintext[i]), table);
-            ciphertext_pos += 2;
-        // TODO: IF SPECIAL CHAR, JUST ADD TO THE OUTPUT
+        unsigned char c = (unsigned char) plaintext[i];
+        if (isalpha(c)) {
+            char encrypted[2];
+            int res = get_cipher(toupper(c), table, encrypted);
+            if (res == 0) {
+                ciphertext[ciphertext_pos] = encrypted[0];
+                ciphertext[ciphertext_pos + 1] = encrypted[1];
+                ciphertext_pos += 2;
+            } else {
+                printf("There was an error during encryption.\n");
+                free(ciphertext);
+                return NULL;
+            }
         } else {
-            ciphertext[i] = plaintext[i];
+            ciphertext[ciphertext_pos] = c;
             ciphertext_pos += 1;
         }
     }
+    ciphertext[ciphertext_pos] = '\0';
     return ciphertext;
 }
 
