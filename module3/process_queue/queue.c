@@ -1,26 +1,10 @@
-/**
- * @file queue.c
- * @brief Generic doubly linked-list queue implementation with priority removal.
+/*
+ * queue.c / Implement Process Queue
  *
- * This module implements a simple, generic queue backed by a doubly linked list.
- * Elements are stored as opaque pointers (`void *`) inside `node_t` nodes.
- * In addition to FIFO operations, it supports removing the first process with the
- * highest priority (numerically lowest `process_t::priority`).
+ * Sooji Kim / CS5600 / Northeastern University
+ * Fall 2025 / Sep 23, 2025
  *
- * @author
- *   Sooji Kim
- *
- * @date
- *   Fall 2025 (Sep 23, 2025)
- *
- * @note
- *   Type definitions for @c queue_t, @c node_t, and @c process_t are expected
- *   to be provided by @c queue.h. This file does not allocate or free user
- *   payloads (the @c void* @c data inside nodes); ownership of element memory
- *   remains with the caller.
- *
- * @copyright
- *   For course use in CS5600, Northeastern University.
+ * Library file for a generic queue
  */
 
 #include <limits.h>
@@ -164,7 +148,6 @@ process_t* rmProcess(queue_t *queue) {
         if (process != NULL && process->priority < highest_priority) {
             highest_priority = process->priority;
             highest_node = curr;
-            /* tie automatically prefers the first seen (earliest) */
         }
         curr = curr->next;
     }

@@ -57,10 +57,11 @@
 static process_t *make_process(int pid, long runtime, int priority) {
   process_t *p = (process_t *)malloc(sizeof *p);
   if (p == NULL) {
+    printf("Failed to allocate memory for process\n");
     return NULL;
   }
   char buf[32];
-  sprintf(buf, "process_%d", pid); /**< Safe for small pid values */
+  sprintf(buf, "process_%d", pid);
   p->pid = pid;
   p->name = strdup(buf);
   p->runtime = runtime;
@@ -127,7 +128,7 @@ int main(void) {
 
   // init q
   queue_t q = (queue_t){0};
-  printf("Action: Initial qsize (expect 0): %d\n", qsize(&q));
+  printf("Test: Initial qsize (expect 0): %d\n", qsize(&q));
   print_queue(&q, "empty queue");
 
   // push 3 processes
@@ -138,10 +139,10 @@ int main(void) {
   print_queue(&q, "process_1(priority=5) -> process_2(priority=3) -> process_3(priority=7)");
 
   // test qsize - should be 3
-  printf("Action: qsize after 3 enqueues (expect 3): %d\n", qsize(&q));
+  printf("Test: qsize after 3 enqueues (expect 3): %d\n", qsize(&q));
 
   // test popQ - should remove process 1
-  printf("Action: popQ (expect process_1)\n");
+  printf("Test: popQ (expect process_1)\n");
   process_t *popped = (process_t *)popQ(&q);
   if (popped != NULL) {
     printf("Popped: pid=%d name=%s priority=%d\n", popped->pid, popped->name, popped->priority);
@@ -151,12 +152,12 @@ int main(void) {
 
   // push 2 processes
   printf("Action: Enqueue process_4(priority=1) and process_5(priority=6)\n");
-  add2q(&q, make_process(4, 15L, 1)); /* highest priority (lowest number) */
+  add2q(&q, make_process(4, 15L, 1));
   add2q(&q, make_process(5, 50L, 6));
   print_queue(&q, "process_2(priority=3) -> process_3(priority=7) -> process_4(priority=1) -> process_5(priority=6)");
 
   // test rmProcess - should remove process 4
-  printf("Action: rmProcess (expect process_4 with priority=1)\n");
+  printf("Test: rmProcess (expect process_4 with priority=1)\n");
   process_t *removed = rmProcess(&q);
   if (removed != NULL) {
     printf("Removed high-priority: pid=%d name=%s priority=%d\n",
@@ -177,6 +178,6 @@ int main(void) {
   printf("\n");
   print_queue(&q, "empty queue");
 
-  printf("Final qsize (expect 0): %d\n", qsize(&q));
+  printf("Test: Final qsize (expect 0): %d\n", qsize(&q));
   return 0;
 }
