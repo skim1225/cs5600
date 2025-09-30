@@ -156,39 +156,26 @@ int main(void)
  Add a short explanation of 100-300 words to your code as a comment and be sure
  to label the comment so we know it is the answer to this question.
 
-- not consistent
-- due to differences in how cpu schedules
-- avoid by using waiting or making one thread wait for result of another or join()
-- problems - inconsistency, race conditions
+When observing the thread behavior from part 3, we can see that the thread behaviors
+are not always consistent when it comes to the data being accessed by the two
+different threads. For instance, the reader function might see that global_arr[10] = 0
+instead of 10 as we may expect from the writer function.
+
+This inconsistency is actually expected behavior because the reading and writing
+to the array by the different threads are not synchronized and may create race
+conditions, where the reader accesses array indices before the writer can initilize
+the data at those indices. Due to the nondeterministic scheduling of threads by the CPU,
+we cannot guarantee that the reader will read the data after the writer writes it.
+
+A common method of resolving the issue of threads stepping on one another is the
+addition of mutex locks to your code. This synchronizes the threads and ensures
+safe access to shared resources, preventing race conditions and inconsistencies.
+
+Mutex locks ensures that only one thread can access a critical section at a
+time. Critical sections refers to the part of code which accesses shared data,
+such as our global int array. Simply call the function pthread_mutex_lock() prior
+to entering the critical section to aqcuire the mutex and call pthread_mutex_unlock()
+to release the mutex after exiting the critical section. This will allow other
+threads to acquire the mutex.
 
 */
-
-/* =========================
- * ANSWER TO Q4 (Consistency)
- * =========================
- * Observation: When threads share memory without synchronization, results are
- * often inconsistent: readers may print partially updated arrays, repeated
- * values, out-of-order diagnostics, or “missing” updates. This happens even on
- * a single CPU due to compiler optimizations and instruction reordering; on
- * multicore systems, caches can make writes by one thread invisible to another
- * for a while.
- *
- * Why it’s not consistent: Unsynchronized reads/writes create data races. The
- * compiler and CPU may reorder memory operations, and cores can read stale
- * cache lines. Without a “happens-before” edge, there is no guarantee that the
- * reader observes a complete, single round of data. Printing interleaves
- * nondeterministically, so output ordering differs across runs.
- *
- * Should we expect inconsistency? Yes. The C memory model says that racy
- * programs have undefined behavior; inconsistent results (or seemingly
- * “impossible” states) are expected.
- *
- * Avoiding “stepping on each other”: Establish proper synchronization. Protect
- * shared state (the array and version flag) with a mutex, and coordinate
- * transfer with a condition variable (or semaphores). These primitives create
- * a happens-before relationship that prevents torn reads and stale data. Other
- * valid approaches include atomics with acquire/release semantics, barriers,
- * or message passing (queues/channels). In this program, the mutex+condvar
- * “publish/subscribe” pattern ensures the reader copies a coherent snapshot
- * only after the writer has fully published it.
- */
