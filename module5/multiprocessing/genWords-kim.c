@@ -2,7 +2,7 @@
  * genWords-kim.c / Random Word Generation (hardcoded 10,000 words)
  *
  * Sooji Kim / CS5600 / Northeastern University
- * Fall 2025 / Oct 3, 2025
+ * Fall 2025 / Oct 1, 2025
  *
  * Program based on the random number generator assignment which generates
  * 10,000 "words" or strings and writes them to a file.

@@ -4,19 +4,44 @@
  * Sooji Kim / CS5600 / Northeastern University
  * Fall 2025 / Oct 2, 2025
  *
- * TODO
+ * Program which uses multiprocessing to encrypt words concurrently.
  */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "queue.h"
+
+#define MAX_LINE_LEN 256
 
 
 int main() {
-	/* 1. (10 pts) Revisit the program from the prior assignment "Random Number Generation"
- 	and have it generate small text strings (words) instead of numbers and write them to a file.
- 	The file must contain at least 10,000 words.
-	*/
 
 	/* 2. (30 pts) Read the generated text file into your program and store each word
  	separately using the queue data structure you built in a prior assignment.
 	*/
+	FILE *file_ptr;
+	char line_buff[MAX_LINE_LEN];
+
+	file_ptr = fopen("words.txt", "r");
+
+	if (file_ptr == NULL) {
+		perror("Error opening file");
+		return 1;
+	}
+
+	// init q
+	queue_t q = {NULL, NULL, 0};
+
+	while (fgets(line_buff, MAX_LINE_LEN, file_ptr) != NULL) {
+		char *curr = strcspn(line_buff);
+		// add word node to q
+		add2q(&q, curr);
+	}
+
+	fclose(file_ptr);
+
+
 
 	/* 3. 50 pts) Loop through the sentences and call your cipher program from a
 	 prior assignment (as a separate process) to encrypt 100 words at a time --
@@ -36,6 +61,8 @@ int main() {
 	 sentences, one without termination markers (. ? !), where the cipher program
 	 cannot be found, etc.
 	*/
+
+	// mem cleanup
 
 	return 0;
 }
