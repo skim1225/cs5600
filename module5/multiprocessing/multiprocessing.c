@@ -15,7 +15,16 @@
 #define MAX_LINE_LEN 256
 
 
-int main() {
+static void cleanup(queue_t *q) {
+	void *curr = popQ(q);
+	while (curr != NULL) {
+		free((char *) curr);
+		curr = popQ(q);
+	}
+}
+
+
+int main(void) {
 
 	/* 2. (30 pts) Read the generated text file into your program and store each word
  	separately using the queue data structure you built in a prior assignment.
@@ -33,10 +42,34 @@ int main() {
 	// init q
 	queue_t q = {NULL, NULL, 0};
 
+	// write words to q
 	while (fgets(line_buff, MAX_LINE_LEN, file_ptr) != NULL) {
-		char *curr = strcspn(line_buff);
+		// replace \n with terminator
+		size_t len = strcspn(line_buff, "\r\n");
+		line_buff[len] = '\0';
+
+		// skip empty liens
+		if (line_buff[0] == '\0') {
+			continue;
+		}
+
 		// add word node to q
-		add2q(&q, curr);
+		char *word = strdup(line_buff);
+
+		if (word == NULL) {
+			perror("Error copying string");
+			fclose(file_ptr);
+			cleanup(&q);
+			return 1;
+		}
+
+		if (add2q(&q, word) != 0) {
+			free(word);
+			printf("Error adding word to queue\n");
+			fclose(file_ptr);
+			cleanup(&q);
+			return 1;
+		}
 	}
 
 	fclose(file_ptr);
@@ -63,6 +96,7 @@ int main() {
 	*/
 
 	// mem cleanup
+	cleanup(&q);
 
 	return 0;
 }
