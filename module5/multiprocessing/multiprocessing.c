@@ -10,17 +10,53 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
+
 #include "queue.h"
+#include "polybius.h"
 
 #define MAX_LINE_LEN 256
+#define BATCH_SIZE 100
+#define MAX_BATCH_LEN 16384
 
-
+// helper func to clean up q nodes from mem
 static void cleanup(queue_t *q) {
 	void *curr = popQ(q);
 	while (curr != NULL) {
 		free((char *) curr);
 		curr = popQ(q);
 	}
+}
+
+
+// helper func to generate unique file names
+static FILE *gen_filename(const char *base) {
+	char name[128];
+	int n = 0;
+	int file_exists = 1;
+	while (file_exists) {
+		if (n == 0)
+			snprintf(name, sizeof(name), "%s", base);
+		else
+			snprintf(name, sizeof(name), "%.*s-%d.txt",
+					 (int)(strrchr(base, '.') ? strrchr(base, '.') - base : strlen(base)),
+					 base, n);
+
+		if (access(name, F_OK) != 0)
+			file_exists = 0;
+
+		n++;
+	}
+
+	FILE *fp = fopen(name, "w");
+	if (!fp) {
+		perror("fopen");
+		return NULL;
+	}
+
+	fprintf(stderr, "Writing output to %s\n", name);
+	return fp;
 }
 
 
@@ -74,8 +110,6 @@ int main(void) {
 
 	fclose(file_ptr);
 
-
-
 	/* 3. 50 pts) Loop through the sentences and call your cipher program from a
 	 prior assignment (as a separate process) to encrypt 100 words at a time --
 	 you will likely need to modify your cipher program to take input differently
@@ -89,11 +123,84 @@ int main(void) {
 	 the output in order.
 	*/
 
+	// TODO: init square
+	static const polybius_square_t square = {
+		.square = {
+			{'A', 'B', 'C', 'D', 'E'},
+			{'F', 'G', 'H', 'I', 'K'},
+			{'L', 'M', 'N', 'O', 'P'},
+			{'Q', 'R', 'S', 'T', 'U'},
+			{'V', 'W', 'X', 'Y', 'Z'}
+		}
+	};
+
+	char batch[MAX_BATCH_LEN];
+	int count = 0;
+	void *curr = popQ(&q);
+
+	while (curr != NULL) {
+		batch[0] = '\0';
+
+		// concat 100 words in string at a time
+		for (int i = 0; i < BATCH_SIZE && curr != NULL; i++) {
+			strcat(batch, (char*) curr);
+			strcat(batch, "\n");
+
+			free(curr);
+			curr = popQ(&q);
+		}
+
+		// skip empty
+		if (batch[0] == '\0') {
+			continue;
+		}
+
+		// create pipe + validate
+		int pfd[2];
+		if (pipe(pfd) != 0) {
+			perror("Error creating pipe");
+			cleanup(&q);
+			fclose(out);
+			return 1;
+		}
+
+		// create child process + validate
+		pid_t pid = fork();
+		if (pid < 0) {
+			perror("Error creating child process");
+			close(pfd[0]);
+			close(pfd[1]);
+			cleanup(&q);
+			fclose(out);
+			return 1;
+		}
+
+		// child process for encryption
+		if (pid == 0) {
+			close(pfd[0]);
+			char* encrypted = pbEncode(batch, &square);
+			if (!encrypted) {
+				close(pfd[1]);
+				_exit(1);
+			}
+			// pipe to parent
+			dprintf(pfd[1], "%s\n", encrypted);
+
+			free(encrypted);
+			close(pfd[1]);
+			_exit(0);
+		}
+
+
+	}
+
+
 	/* 4. (10 pts) Using test cases of your own design, demonstrate that your
 	 program works. Account for common edge conditions, such as a file without
 	 sentences, one without termination markers (. ? !), where the cipher program
 	 cannot be found, etc.
 	*/
+
 
 	// mem cleanup
 	cleanup(&q);

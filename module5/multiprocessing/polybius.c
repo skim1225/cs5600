@@ -39,6 +39,10 @@
  * @post On success, exactly two bytes are written to @p encrypted and no
  *       other memory is modified.
  */
+
+// TODO: MODIFY METHOD TO TAKE AN ARRAY OF WORDS TO ENCRYPT
+// TODO: FIGURE OUT HOW TO RETURN DATA TO A DIFFERENT PROCESS
+
 int get_cipher(char c, const polybius_square_t *table, char encrypted[2]) {
     // validate input
     if (table == NULL || encrypted == NULL) {
