@@ -13,13 +13,8 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-
-/*
-#include <sys/types.h>  // pid_t
-#include <sys/wait.h>   // waitpid
-*/
-
-
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "queue.h"
 #include "polybius.h"
 
@@ -215,14 +210,20 @@ int main(void) {
 		}
 
 		char buf[4096];
-		size_t bytres_read;
+		size_t bytes_read;
 
 	while (!feof(pipe_read)) {
 		bytes_read = fread(buf, 1, sizeof(buf), pipe_read);
 		if (bytes_read > 0) {
 			fwrite(buf, 1, bytes_read, out);
 		}
+		if (ferror(pipe_read) {
+			perror("Error reading from pipe");
+			break;
+		}
 	}
+
+	fclose(pipe_read);
 
 
 	}
@@ -233,6 +234,8 @@ int main(void) {
 	 sentences, one without termination markers (. ? !), where the cipher program
 	 cannot be found, etc.
 	*/
+
+	// RUN tests.sh FOR TEST CASES
 
 
 	// clean
