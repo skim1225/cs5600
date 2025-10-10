@@ -1,0 +1,26 @@
+# ===== Build Artifacts =====
+*.o
+*.out
+*.exe
+*.dSYM/
+*.obj
+*.dll
+*.so
+*.a
+
+# ===== Compiled Programs =====
+genWords
+multiprocessing
+cipher
+
+# ===== Generated Data / Results =====
+words.txt
+encrypted*.txt
+
+# ===== Editor / System Files =====
+.DS_Store
+*.swp
+*.tmp
+*~
+.vscode/
+.idea/
