@@ -40,7 +40,7 @@ static FILE *gen_unique_file(const char *base) {
 
 	while (file_exists) {
 		if (n == 0)
-			sprintf(name, "%s", base);
+			sprintf(name, "%s.txt", base);
 		else
 			sprintf(name, "%s-%d.txt", base, n);
 
@@ -133,7 +133,7 @@ int main(void) {
 		}
 	};
 
-	FILE *out = gen_unique_file("encrypted.txt");
+	FILE *out = gen_unique_file("encrypted");
 	if (out == NULL) {
 		perror("Error creating file");
 		cleanup(&q);
