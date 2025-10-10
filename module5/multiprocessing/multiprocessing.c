@@ -212,22 +212,25 @@ int main(void) {
 		char buf[4096];
 		size_t bytes_read;
 
-	while (!feof(pipe_read)) {
-		bytes_read = fread(buf, 1, sizeof(buf), pipe_read);
-		if (bytes_read > 0) {
-			fwrite(buf, 1, bytes_read, out);
+		while (!feof(pipe_read)) {
+			bytes_read = fread(buf, 1, sizeof(buf), pipe_read);
+			if (bytes_read > 0) {
+				fwrite(buf, 1, bytes_read, out);
+			}
+			if (ferror(pipe_read)) {
+				perror("Error reading from pipe");
+				break;
+			}
 		}
-		if (ferror(pipe_read) {
-			perror("Error reading from pipe");
-			break;
-		}
+
+		fclose(pipe_read);
+		(void) waitpid(pid, NULL, 0);
 	}
 
-	fclose(pipe_read);
-
-
-	}
-
+	// clean
+	fclose(out);
+	cleanup(&q);
+	return 0;
 
 	/* 4. (10 pts) Using test cases of your own design, demonstrate that your
 	 program works. Account for common edge conditions, such as a file without
@@ -235,11 +238,5 @@ int main(void) {
 	 cannot be found, etc.
 	*/
 
-	// RUN tests.sh FOR TEST CASES
-
-
-	// clean
-	fclose(out);
-	cleanup(&q);
-	return 0;
+	// RUN tests.sh for test cases
 }
