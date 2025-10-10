@@ -9,9 +9,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+
+/*
+#include <sys/types.h>  // pid_t
+#include <sys/wait.h>   // waitpid
+*/
+
 
 #include "queue.h"
 #include "polybius.h"
@@ -30,18 +37,17 @@ static void cleanup(queue_t *q) {
 }
 
 
-// helper func to generate unique file names
-static FILE *gen_filename(const char *base) {
+// helper func to generate unique files
+static FILE *gen_unique_file(const char *base) {
 	char name[128];
 	int n = 0;
 	int file_exists = 1;
+
 	while (file_exists) {
 		if (n == 0)
-			snprintf(name, sizeof(name), "%s", base);
+			sprintf(name, "%s", base);
 		else
-			snprintf(name, sizeof(name), "%.*s-%d.txt",
-					 (int)(strrchr(base, '.') ? strrchr(base, '.') - base : strlen(base)),
-					 base, n);
+			sprintf(name, "%s-%d.txt", base, n);
 
 		if (access(name, F_OK) != 0)
 			file_exists = 0;
@@ -51,26 +57,24 @@ static FILE *gen_filename(const char *base) {
 
 	FILE *fp = fopen(name, "w");
 	if (!fp) {
-		perror("fopen");
+		perror("Error creating file");
 		return NULL;
 	}
 
-	fprintf(stderr, "Writing output to %s\n", name);
 	return fp;
 }
-
 
 int main(void) {
 
 	/* 2. (30 pts) Read the generated text file into your program and store each word
  	separately using the queue data structure you built in a prior assignment.
 	*/
-	FILE *file_ptr;
+	FILE *fp;
 	char line_buff[MAX_LINE_LEN];
 
-	file_ptr = fopen("words.txt", "r");
+	fp = fopen("words.txt", "r");
 
-	if (file_ptr == NULL) {
+	if (fp == NULL) {
 		perror("Error opening file");
 		return 1;
 	}
@@ -79,7 +83,7 @@ int main(void) {
 	queue_t q = {NULL, NULL, 0};
 
 	// write words to q
-	while (fgets(line_buff, MAX_LINE_LEN, file_ptr) != NULL) {
+	while (fgets(line_buff, MAX_LINE_LEN, fp) != NULL) {
 		// replace \n with terminator
 		size_t len = strcspn(line_buff, "\r\n");
 		line_buff[len] = '\0';
@@ -94,7 +98,7 @@ int main(void) {
 
 		if (word == NULL) {
 			perror("Error copying string");
-			fclose(file_ptr);
+			fclose(fp);
 			cleanup(&q);
 			return 1;
 		}
@@ -102,13 +106,13 @@ int main(void) {
 		if (add2q(&q, word) != 0) {
 			free(word);
 			printf("Error adding word to queue\n");
-			fclose(file_ptr);
+			fclose(fp);
 			cleanup(&q);
 			return 1;
 		}
 	}
 
-	fclose(file_ptr);
+	fclose(fp);
 
 	/* 3. 50 pts) Loop through the sentences and call your cipher program from a
 	 prior assignment (as a separate process) to encrypt 100 words at a time --
@@ -133,6 +137,14 @@ int main(void) {
 			{'V', 'W', 'X', 'Y', 'Z'}
 		}
 	};
+
+	FILE *out = gen_unique_file("encrypted.txt");
+	if (out == NULL) {
+		perror("Error creating file");
+		cleanup(&q);
+		return 1;
+	}
+
 
 	char batch[MAX_BATCH_LEN];
 	int count = 0;
@@ -191,6 +203,27 @@ int main(void) {
 			_exit(0);
 		}
 
+		// parent write to file
+		close(pfd[1]);
+		FILE *pipe_read = fdopen(pfd[0], "r");
+		if (pipe_read == NULL) {
+			perror("Error opening pipe read file");
+			(void) waitpid(pid, NULL, 0);
+			fclose(out);
+			cleanup(&q);
+			return 1;
+		}
+
+		char buf[4096];
+		size_t bytres_read;
+
+	while (!feof(pipe_read)) {
+		bytes_read = fread(buf, 1, sizeof(buf), pipe_read);
+		if (bytes_read > 0) {
+			fwrite(buf, 1, bytes_read, out);
+		}
+	}
+
 
 	}
 
@@ -202,8 +235,8 @@ int main(void) {
 	*/
 
 
-	// mem cleanup
+	// clean
+	fclose(out);
 	cleanup(&q);
-
 	return 0;
 }
