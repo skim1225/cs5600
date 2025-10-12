@@ -53,8 +53,28 @@ static void cleanup(queue_t *q) {
     }
 }
 
-static void *thread_encrypt_func(void* arg) {
-    thread_job_t *job = (thread_job_t *) arg;
+// func for each thread to encrypt 1 batch of text
+static void* thread_func(void* arg) {
+
+	// encrypt string
+    thread_job_t* job = (thread_job_t *) arg;
+	char *text_batch = (char *) arg;
+	char* encrypted = pbEncode(text_batch, &square);
+	if (encrypted == NULL) {
+		free(text_batch);
+		return NULL;
+	}
+
+	// lock file, write, and unlock
+	pthread_mutex_lock(&file_lock);
+	fputs(encrypted, out);
+	pthread_mutex_unlock(&file_lock);
+
+	// cleanup
+	free(encrypted);
+	free(text_batch);
+	return NULL;
+}
 
 }
 
