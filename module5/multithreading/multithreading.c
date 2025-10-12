@@ -53,7 +53,23 @@ static void cleanup(queue_t *q) {
     }
 }
 
-// func for each thread to encrypt 1 batch of text
+/**
+ * @brief Thread routine that encrypts a batch of text and writes it to the output file.
+ *
+ * This function expects @p arg to be a heap-allocated, null-terminated string
+ * containing a batch of newline-delimited words. It encodes the batch using the
+ * Polybius cipher and appends the result to the shared output file, protecting the
+ * write with a mutex to ensure thread-safe access.
+ *
+ * The function takes ownership of the input buffer and frees it. It also frees the
+ * encrypted buffer produced by the cipher.
+ *
+ * @param arg Pointer to a dynamically-allocated C-string containing the batch to encrypt.
+ * @return Always returns NULL (the return value is not used by the caller).
+ *
+ * @note Side effects: writes to the global @c out file handle while holding
+ *       @c file_lock to ensure mutual exclusion.
+ */
 static void* thread_func(void* arg) {
 
 	// encrypt string
@@ -76,6 +92,22 @@ static void* thread_func(void* arg) {
 	return NULL;
 }
 
+/**
+ * @brief Program entry point that orchestrates reading input, batching, threading, and cleanup.
+ *
+ * Workflow:
+ *  - Reads words from "words.txt" and enqueues them.
+ *  - Groups words into batches of size @c BATCH_SIZE.
+ *  - Spawns one thread per batch to encrypt using the Polybius cipher.
+ *  - Each thread writes its result to "out.txt" under a mutex.
+ *  - Joins all threads and releases resources.
+ *
+ * Error handling is performed along the way; on failure, resources allocated up to
+ * the failure point are released before returning a non-zero status code.
+ *
+ * @return 0 on success; non-zero on error (e.g., file I/O failure, allocation failure,
+ *         queue insertion failure, or thread creation failure).
+ */
 int main(void) {
 
 	/* Read the generated text file into your program and store each word
