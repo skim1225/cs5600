@@ -57,7 +57,6 @@ static void cleanup(queue_t *q) {
 static void* thread_func(void* arg) {
 
 	// encrypt string
-    thread_job_t* job = (thread_job_t *) arg;
 	char *text_batch = (char *) arg;
 	char* encrypted = pbEncode(text_batch, &square);
 	if (encrypted == NULL) {
@@ -68,14 +67,13 @@ static void* thread_func(void* arg) {
 	// lock file, write, and unlock
 	pthread_mutex_lock(&file_lock);
 	fputs(encrypted, out);
+	fputc('\n', out);
 	pthread_mutex_unlock(&file_lock);
 
 	// cleanup
 	free(encrypted);
 	free(text_batch);
 	return NULL;
-}
-
 }
 
 int main(void) {
@@ -137,7 +135,7 @@ int main(void) {
 	*/
 
 	// gen outfile
-	FILE *out = fopen("out.txt", "w");
+	out = fopen("out.txt", "w");
 	if (out == NULL) {
 		perror("Error creating file");
 		cleanup(&q);
@@ -155,13 +153,11 @@ int main(void) {
 		perror("Error allocating threads");
 		fclose(out);
 		cleanup(&q);
-		pthread_mutx_destroy(&file_lock);
+		pthread_mutex_destroy(&file_lock);
 		return 1;
 	}
 
-
 	char batch[MAX_BATCH_LEN];
-	int count = 0;
 	void *curr = popQ(&q);
 
 	while (curr != NULL) {
@@ -181,69 +177,20 @@ int main(void) {
 			continue;
 		}
 
-		// create pipe + validate
-		int pfd[2];
-		if (pipe(pfd) != 0) {
-			perror("Error creating pipe");
-			cleanup(&q);
-			fclose(out);
-			return 1;
+		// create thread for each batch with copy of batch
+		char* batch_copy = strdup(batch);
+		if (batch_copy == NULL) {
+			perror("Error duplicating batch");
+			break;
 		}
 
-		// create child process + validate
-		pid_t pid = fork();
-		if (pid < 0) {
-			perror("Error creating child process");
-			close(pfd[0]);
-			close(pfd[1]);
-			cleanup(&q);
-			fclose(out);
-			return 1;
+		int rc = pthread_create(&tids[num_threads], NULL, thread_func, batch_copy);
+		if (rc != 0) {
+			fprintf(stderr, "pthread_create failed: %s\n", strerror(rc));
+			free(batch_copy);
+			break;
 		}
-
-		// child process for encryption
-		if (pid == 0) {
-			close(pfd[0]);
-			char* encrypted = pbEncode(batch, &square);
-			if (!encrypted) {
-				close(pfd[1]);
-				_exit(1);
-			}
-			// pipe to parent
-			dprintf(pfd[1], "%s\n", encrypted);
-
-			free(encrypted);
-			close(pfd[1]);
-			_exit(0);
-		}
-
-		// parent write to file
-		close(pfd[1]);
-		FILE *pipe_read = fdopen(pfd[0], "r");
-		if (pipe_read == NULL) {
-			perror("Error opening pipe read file");
-			(void) waitpid(pid, NULL, 0);
-			fclose(out);
-			cleanup(&q);
-			return 1;
-		}
-
-		char buf[4096];
-		size_t bytes_read;
-
-		while (!feof(pipe_read)) {
-			bytes_read = fread(buf, 1, sizeof(buf), pipe_read);
-			if (bytes_read > 0) {
-				fwrite(buf, 1, bytes_read, out);
-			}
-			if (ferror(pipe_read)) {
-				perror("Error reading from pipe");
-				break;
-			}
-		}
-
-		fclose(pipe_read);
-		(void) waitpid(pid, NULL, 0);
+		num_threads++;
 	}
 
 	// join threads
