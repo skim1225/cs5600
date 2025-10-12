@@ -1,0 +1,8 @@
+HELLO
+world
+Polybius
+cipher
+THREADS
+Are
+working
+great
