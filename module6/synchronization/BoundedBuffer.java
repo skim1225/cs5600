@@ -24,7 +24,7 @@ public class BoundedBuffer {
     public void deposit(String data) throws InterruptedException {
         lock.lock();
         try {
-            whil (count == capacity) {
+            while (count == capacity) {
                 notFull.await();
             }
             buffer[rear] = data;
@@ -41,14 +41,14 @@ public class BoundedBuffer {
         try {
             while (count == 0) {
                 notEmpty.await();
-                String result = buffer[front];
-                front = (front + 1) % capacity;
-                count--;
-                notFull.signal();
-                return result;
-            } finally {
-                lock.unlock();
             }
+            String result = buffer[front];
+            front = (front + 1) % capacity;
+            count--;
+            notFull.signal();
+            return result;
+        } finally {
+            lock.unlock();
         }
     }
 }
