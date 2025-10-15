@@ -16,6 +16,16 @@ public class InsertStrings {
 
     private static int produced = 0;
 
+    /**
+     * @brief Entry point of the program.
+     *
+     * Initializes the bounded buffer, starts multiple producer threads to insert
+     * strings, and a single consumer thread to retrieve them. Joins all producer
+     * threads and interrupts the consumer upon completion.
+     *
+     * @param args command-line arguments (not used)
+     * @throws InterruptedException if any thread is interrupted during join
+     */
     public static void main(String[] args) throws InterruptedException {
         BoundedBuffer buffer = new BoundedBuffer(CAPACITY);
 
@@ -37,7 +47,16 @@ public class InsertStrings {
         consumer.interrupt();
     }
 
-    // method for adding to buffer
+    /**
+     * @brief Produces and deposits strings into the buffer.
+     *
+     * Each thread repeatedly generates a unique string identifier composed of its
+     * thread ID and a random 5-digit number, then deposits it into the bounded
+     * buffer. The loop terminates when the total number of strings reaches the
+     * predefined limit.
+     *
+     * @param buffer the shared {@link BoundedBuffer} instance to deposit items into
+     */
     private static void produce(BoundedBuffer buffer) {
         try {
             while (true) {
@@ -55,7 +74,14 @@ public class InsertStrings {
         }
     }
 
-    // method for getting from buffer
+    /**
+     * @brief Continuously consumes strings from the buffer.
+     *
+     * Fetches strings deposited by producer threads and prints them. The loop runs
+     * indefinitely until the thread is interrupted.
+     *
+     * @param buffer the shared {@link BoundedBuffer} instance to fetch items from
+     */
     private static void consume(BoundedBuffer buffer) {
         try {
             while (true) {
@@ -67,13 +93,28 @@ public class InsertStrings {
         }
     }
 
-    // helper func to generate random 5 digit numbers
+    /**
+     * @brief Generates a random 5-digit string.
+     *
+     * Creates a random integer in the range [00000, 99999] and formats it as a
+     * zero-padded 5-character string.
+     *
+     * @return a 5-digit random string
+     */
     private static String genRand() {
         int num = (int) (Math.random() * 100000);
         return String.format("%05d", num);
     }
 
-    // helper func to keep track of num strings inserted safely
+    /**
+     * @brief Tracks the total number of strings inserted in a thread-safe manner.
+     *
+     * Increments the shared counter if the total number of produced strings is less
+     * than the predefined limit. Once the limit is reached, returns -1 to signal
+     * that production should stop.
+     *
+     * @return the updated count of inserted strings, or -1 if the limit is reached
+     */
     private static synchronized int numInserted() {
         if (produced >= NUM_STRINGS) {
             return -1;
