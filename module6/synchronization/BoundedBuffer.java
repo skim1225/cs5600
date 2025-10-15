@@ -1,3 +1,12 @@
+/*
+ * BoundedBuffer.java / Synchronization with Monitors
+ *
+ * Sooji Kim / CS5600 / Northeastern University
+ * Fall 2025 / Oct 15, 2025
+ *
+ * Program for implementing the bounded buffer problem with monitors in Java.
+ */
+
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
