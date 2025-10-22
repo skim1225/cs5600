@@ -154,13 +154,12 @@ message_t* retrieve_msg(int id) {
         }
 
         // tokenize csv line
-        char *save = NULL;
-        char *tok_id = strtok(line_buf, ",", &save);
-        char *tok_ts = strtok(NULL, ",", &save);
-        char *tok_sender = strtok(NULL, ",", &save);
-        char *tok_receiver = strtok(NULL, ",", &save);
-        char *tok_content = strtok(NULL, ",", &save);
-        char *tok_deliv = strtok(NULL, ",", &save);
+        char *tok_id = strtok(line_buf, ",");
+        char *tok_ts = strtok(NULL, ",");
+        char *tok_sender = strtok(NULL, ",");
+        char *tok_receiver = strtok(NULL, ",");
+        char *tok_content = strtok(NULL, ",");
+        char *tok_deliv = strtok(NULL, ",");
 
         // check if tokenizing worked
         if (!tok_id || !tok_ts || !tok_sender || !tok_receiver || !tok_content || !tok_deliv) {
@@ -232,7 +231,7 @@ int main() {
     message_t *retrieved = retrieve_msg(target_id);
     if (retrieved) {
         printf("\nRetrieved message (id=%d):\n", target_id);
-        printf("  Timestamp: %lld\n", (long long)retrieved->timestamp);
+        printf("  Timestamp: %s", ctime(&retrieved->timestamp));
         printf("  Sender:    %s\n", retrieved->sender);
         printf("  Receiver:  %s\n", retrieved->receiver);
         printf("  Content:   %s\n", retrieved->content);
