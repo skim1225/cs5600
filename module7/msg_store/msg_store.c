@@ -25,18 +25,30 @@ typedef struct {
 } message_t;
 
 // creates a new message with the fields appropriately set and returns a dynamically allocated message "object"
-message_t create_msg(char* sender, char* receiver, char* content) {
-    if (sender == NULL || receiver == NULL || content == NULL) {
-        perror("sender or receiver or content is null");
+message_t* create_msg(const char* sender, const char* receiver, const char* content) {
+    if (!sender || !receiver || !content) {
+        fprintf(stderr, "Sender or receiver or content is null");
         return NULL;
     }
-    message_t msg;
-    msg.id = global_id;
-    global_id++;
-    msg.timestamp = time();
-    msg.sender = sender;
-    msg.receiver = receiver;
-    msg.content = content;
+
+    // dynamically allocate msg obj
+    message_t* msg = malloc(sizeof *msg);
+    if (!msg) {
+        fprintf(stderr, "Error allocating memory for message structure");
+        return NULL;
+    }
+
+    msg->id = global_id++;
+    msg->timestamp = time(NULL);
+    msg->delivered = false;
+
+    strncpy(msg->sender, sender, sizeof(msg->sender) - 1);
+    msg->sender[sizeof(msg->sender) - 1] = '\0';
+    strncpy(msg->receiver, receiver, sizeof(msg->receiver) - 1);
+    msg->receiver[sizeof(msg->receiver) - 1] = '\0';
+    strncpy(msg->content, content, sizeof(msg->content) - 1);
+    msg->content[sizeof(msg->content) - 1] = '\0';
+
     return msg;
 }
 
