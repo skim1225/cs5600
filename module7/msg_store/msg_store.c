@@ -26,7 +26,16 @@ typedef struct {
     bool delivered;
 } message_t;
 
-// helper func to init msg store on disk
+/**
+ * @brief Initialize the message store on disk.
+ *
+ * This function creates or overwrites the CSV file used as the message store,
+ * writes the header row, and closes the file. It ensures the message store
+ * is ready for subsequent read/write operations.
+ *
+ * @return 0 on success, or 1 if an error occurred while opening, writing,
+ *         or closing the file.
+ */
 int init_msg_store() {
 
     // open file
@@ -54,7 +63,19 @@ int init_msg_store() {
     return 0;
 }
 
-// creates a new message with the fields appropriately set and returns a dynamically allocated message "object"
+/**
+ * @brief Create a new message object dynamically.
+ *
+ * This function allocates and initializes a new message_t structure with
+ * the provided sender, receiver, and content. It assigns a unique ID and
+ * timestamp automatically.
+ *
+ * @param sender Pointer to the sender's name string.
+ * @param receiver Pointer to the receiver's name string.
+ * @param content Pointer to the message content string.
+ * @return Pointer to a newly allocated message_t object, or NULL if
+ *         allocation fails or any parameter is NULL.
+ */
 message_t* create_msg(const char* sender, const char* receiver, const char* content) {
     if (!sender || !receiver || !content) {
         fprintf(stderr, "Sender or receiver or content is null\n");
@@ -82,7 +103,17 @@ message_t* create_msg(const char* sender, const char* receiver, const char* cont
     return msg;
 }
 
-// stores the message in a message store on disk
+/**
+ * @brief Store a message to the CSV-based message store.
+ *
+ * This function appends a message record to the existing CSV file.
+ * The message is serialized into a comma-separated line containing
+ * its ID, timestamp, sender, receiver, content, and delivery status.
+ *
+ * @param msg Pointer to the message_t object to be stored.
+ * @return 0 on success, or 1 if an error occurred while opening,
+ *         writing, or closing the file.
+ */
 int store_msg(const message_t* msg) {
 
     // input validation
@@ -124,7 +155,17 @@ int store_msg(const message_t* msg) {
     return 0;
 }
 
-// finds and returns a message identified by its identifier
+/**
+ * @brief Retrieve a stored message by its unique identifier.
+ *
+ * This function searches the CSV message store for a message with
+ * the specified ID. If found, it constructs and returns a dynamically
+ * allocated message_t object populated with the stored data.
+ *
+ * @param id Integer identifier of the message to retrieve.
+ * @return Pointer to a newly allocated message_t if found, or NULL
+ *         if the message does not exist or an error occurs.
+ */
 message_t* retrieve_msg(int id) {
     // input validation
     if (id < 0 || id > global_id) {
@@ -199,7 +240,16 @@ message_t* retrieve_msg(int id) {
     return NULL;
 }
 
-// test code, demonstrate funcs work as expected. check edge cases and error handling
+/**
+ * @brief Main entry point for message store demonstration.
+ *
+ * This function demonstrates the functionality of initializing the
+ * message store, creating and storing multiple messages, retrieving
+ * one by ID, and printing its contents. It includes error handling
+ * and cleanup of allocated memory.
+ *
+ * @return 0 on success, or 1 if initialization or allocation fails.
+ */
 int main() {
 
     // initialize msg store
