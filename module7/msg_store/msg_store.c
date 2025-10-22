@@ -202,14 +202,51 @@ message_t* retrieve_msg(int id) {
 
 // test code, demonstrate funcs work as expected. check edge cases and error handling
 int main() {
-    init_msg_store();
+
+    // initialize msg store
+    if (init_msg_store() != 0) {
+        fprintf(stderr, "Failed to initialize message store.\n");
+        return 1;
+    }
 
     // create some msgs
+    message_t *m1 = create_msg("alice", "bob", "hi bob!!!");
+    message_t *m2 = create_msg("carol", "dave", "hi dave from carol");
+    message_t *m3 = create_msg("eve", "faith", "testing testing");
 
-    // save some msgs
+    if (!m1 || !m2 || !m3) {
+        fprintf(stderr, "Error creating messages.\n");
+        free(m1);
+        free(m2);
+        free(m3);
+        return 1;
+    }
 
-    // get a msg and print it to verify
+    // save some msgs to msg store
+    store_msg(m1);
+    store_msg(m2);
+    store_msg(m3);
 
+    // retrieve one msg and print it to verify
+    int target_id = 2;
+    message_t *retrieved = retrieve_msg(target_id);
+    if (retrieved) {
+        printf("\nRetrieved message (id=%d):\n", target_id);
+        printf("  Timestamp: %lld\n", (long long)retrieved->timestamp);
+        printf("  Sender:    %s\n", retrieved->sender);
+        printf("  Receiver:  %s\n", retrieved->receiver);
+        printf("  Content:   %s\n", retrieved->content);
+        printf("  Delivered: %s\n", retrieved->delivered ? "true" : "false");
+        free(retrieved);
+    } else {
+        printf("Message with id=%d not found.\n", target_id);
+    }
 
+    // cleanup
+    free(m1);
+    free(m2);
+    free(m3);
+
+    printf("Program completed successfully.\n");
     return 0;
 }
