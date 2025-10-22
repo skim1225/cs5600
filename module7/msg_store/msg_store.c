@@ -13,6 +13,8 @@
 #include <time.h>
 #include <stdbool.h>
 
+#define CSV_FILE "messages.csv"
+
 int global_id = 0;
 
 typedef struct {
@@ -24,17 +26,45 @@ typedef struct {
     bool delivered;
 } message_t;
 
+// helper func to init msg store on disk
+int init_msg_store() {
+
+    // open file
+    FILE* fp;
+    fp = fopen(CSV_FILE, "w");
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+
+    // write headers
+    if (fprintf(fp, "id,timestamp,sender,receiver,content,delivered\n") < 0) {
+        perror("Error writing to file");
+        fclose(fp);
+        return 1;
+    }
+
+    // close file
+    if (fclose(fp) != 0) {
+        perror("Error closing file");
+        return 1;
+    }
+
+    printf("Message store initiated.\n");
+    return 0;
+}
+
 // creates a new message with the fields appropriately set and returns a dynamically allocated message "object"
 message_t* create_msg(const char* sender, const char* receiver, const char* content) {
     if (!sender || !receiver || !content) {
-        fprintf(stderr, "Sender or receiver or content is null");
+        fprintf(stderr, "Sender or receiver or content is null\n");
         return NULL;
     }
 
     // dynamically allocate msg obj
     message_t* msg = malloc(sizeof *msg);
     if (!msg) {
-        fprintf(stderr, "Error allocating memory for message structure");
+        fprintf(stderr, "Error allocating memory for message structure\n");
         return NULL;
     }
 
@@ -53,14 +83,56 @@ message_t* create_msg(const char* sender, const char* receiver, const char* cont
 }
 
 // stores the message in a message store on disk
-bool store_msg(message_t* msg) {
+int store_msg(const message_t* msg) {
 
+    // input validation
+    if (msg == NULL) {
+        fprintf(stderr, "Message is null\n");
+        return 1;
+    }
+
+    // open file
+    FILE* fp;
+    fp = fopen(CSV_FILE, "a");
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+
+    long long ts = (long long) msg->timestamp;
+
+    // write msg to file
+    if (fprintf(fp, "%d,%lld,%s,%s,%s,%s\n",
+            msg->id,
+            ts,
+            msg->sender,
+            msg->receiver,
+            msg->content,
+            msg->delivered ? "true" : "false") < 0) {
+        perror("Error writing to file");
+        fclose(fp);
+        return 1;
+    }
+
+    // close file
+    if (fclose(fp) != 0) {
+        perror("Error closing file");
+        return 1;
+    }
+
+    printf("Message added to store.\n");
+    return 0;
 }
 
 // finds and returns a message identified by its identifier
 message_t* retrieve_msg(int id) {
+
+    // input validation
+    if (id > global
 }
 
+// test code, demonstrate funcs work as expected. check edge cases and error handling
 int main() {
+    init_msg_store();
     return 0;
 }
