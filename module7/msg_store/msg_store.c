@@ -15,7 +15,7 @@
 
 #define CSV_FILE "messages.csv"
 
-int global_id = 0;
+int global_id = 1;
 
 typedef struct {
     int id;
@@ -126,13 +126,90 @@ int store_msg(const message_t* msg) {
 
 // finds and returns a message identified by its identifier
 message_t* retrieve_msg(int id) {
-
     // input validation
-    if (id > global
+    if (id < 0 || id > global_id) {
+        fprintf(stderr, "retrieve_msg: invalid id\n");
+        return NULL;
+    }
+
+    FILE* fp = fopen(CSV_FILE, "r");
+    if (!fp) {
+        perror("Error opening file");
+        return NULL;
+    }
+
+    char line_buf[2048];
+
+    // skip header
+    if (!fgets(line_buf, sizeof line_buf, fp)) {
+        fclose(fp);
+        return NULL;
+    }
+
+    // iterate over rows of csv
+    while (fgets(line_buf, sizeof line_buf, fp) != NULL) {
+        size_t n = strlen(line_buf);
+        while (n > 0 && (line_buf[n-1] == '\n' || line_buf[n-1] == '\r')) {
+            line_buf[--n] = '\0';
+        }
+
+        // tokenize csv line
+        char *save = NULL;
+        char *tok_id = strtok(line_buf, ",", &save);
+        char *tok_ts = strtok(NULL, ",", &save);
+        char *tok_sender = strtok(NULL, ",", &save);
+        char *tok_receiver = strtok(NULL, ",", &save);
+        char *tok_content = strtok(NULL, ",", &save);
+        char *tok_deliv = strtok(NULL, ",", &save);
+
+        // check if tokenizing worked
+        if (!tok_id || !tok_ts || !tok_sender || !tok_receiver || !tok_content || !tok_deliv) {
+            continue;
+        }
+
+        int parsed_id = (int)strtol(tok_id, NULL, 10);
+        if (parsed_id != id) {
+            continue;
+        }
+
+        // Build result
+        message_t *msg = (message_t *)malloc(sizeof *msg);
+        if (!msg) {
+            fprintf(stderr, "retrieve_msg: malloc failed\n");
+            fclose(fp);
+            return NULL;
+        }
+
+        msg->id = parsed_id;
+        msg->timestamp = (time_t)strtoll(tok_ts, NULL, 10);
+        msg->delivered = (strcmp(tok_deliv, "true") == 0);
+
+        strncpy(msg->sender,   tok_sender,   sizeof msg->sender   - 1);
+        msg->sender[sizeof msg->sender - 1] = '\0';
+        strncpy(msg->receiver, tok_receiver, sizeof msg->receiver - 1);
+        msg->receiver[sizeof msg->receiver - 1] = '\0';
+        strncpy(msg->content,  tok_content,  sizeof msg->content  - 1);
+        msg->content[sizeof msg->content - 1] = '\0';
+
+        fclose(fp);
+        return msg;
+    }
+
+    // msg not found
+    fclose(fp);
+    return NULL;
 }
 
 // test code, demonstrate funcs work as expected. check edge cases and error handling
 int main() {
     init_msg_store();
+
+    // create some msgs
+
+    // save some msgs
+
+    // get a msg and print it to verify
+
+
     return 0;
 }
