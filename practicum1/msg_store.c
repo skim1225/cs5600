@@ -4,7 +4,8 @@
  * Sooji Kim / CS5600 / Northeastern University
  * Fall 25 / November 13, 2025
  *
- * This program implements the beginning of a message-oriented data store.
+ * This program simulates message caching, storage, and retrieval to explore
+ * memory hierarchies and page replacement algorithms.
  */
 
 #include <stdio.h>
@@ -32,6 +33,18 @@ typedef struct {
     msg_content_t content;
     char padding[MSG_SIZE - sizeof(msg_content_t)];
 } message_t;
+
+typedef struct {
+    bool occupied;
+    message_t msg;
+    unsigned long long last_used;
+} cache_entry_t;
+
+typedef struct {
+    cache_entry_t entries[CACHE_SIZE];
+    unsigned long long use_counter;
+} cache_t;
+
 
 /**
  * @brief Initialize the message store on disk.
@@ -138,16 +151,16 @@ int store_msg(const message_t* msg) {
         return 1;
     }
 
-    long long ts = (long long) msg->timestamp;
+    long long ts = (long long) msg->content.timestamp;
 
     // write msg to file
     if (fprintf(fp, "%d,%lld,%s,%s,%s,%s\n",
-            msg->id,
+            msg->content.id,
             ts,
-            msg->sender,
-            msg->receiver,
-            msg->content,
-            msg->delivered ? "true" : "false") < 0) {
+            msg->content.sender,
+            msg->content.receiver,
+            msg->content.content,
+            msg->content.delivered ? "true" : "false") < 0) {
         perror("Error writing to file");
         fclose(fp);
         return 1;
@@ -228,16 +241,16 @@ message_t* retrieve_msg(int id) {
             return NULL;
         }
 
-        msg->id = parsed_id;
-        msg->timestamp = (time_t)strtoll(tok_ts, NULL, 10);
-        msg->delivered = (strcmp(tok_deliv, "true") == 0);
+        msg->content.id = parsed_id;
+        msg->content.timestamp = (time_t)strtoll(tok_ts, NULL, 10);
+        msg->content.delivered = (strcmp(tok_deliv, "true") == 0);
 
-        strncpy(msg->sender,   tok_sender,   sizeof msg->sender   - 1);
-        msg->sender[sizeof msg->sender - 1] = '\0';
-        strncpy(msg->receiver, tok_receiver, sizeof msg->receiver - 1);
-        msg->receiver[sizeof msg->receiver - 1] = '\0';
-        strncpy(msg->content,  tok_content,  sizeof msg->content  - 1);
-        msg->content[sizeof msg->content - 1] = '\0';
+        strncpy(msg->content.sender, tok_sender, sizeof msg->content.sender - 1);
+        msg->content.sender[sizeof msg->content.sender - 1] = '\0';
+        strncpy(msg->content.receiver, tok_receiver, sizeof msg->content.receiver - 1);
+        msg->content.receiver[sizeof msg->content.receiver - 1] = '\0';
+        strncpy(msg->content.content, tok_content, sizeof msg->content.content - 1);
+        msg->content.content[sizeof msg->content.content - 1] = '\0';
 
         fclose(fp);
         return msg;
@@ -246,6 +259,12 @@ message_t* retrieve_msg(int id) {
     // msg not found
     fclose(fp);
     return NULL;
+}
+
+// replaces a random message from the given cache with the given message
+void replace_rand(cache_t *cache, const message_t *msg) {
+    int victim = rand() % CACHE_SIZE;
+
 }
 
 /**
@@ -259,6 +278,9 @@ message_t* retrieve_msg(int id) {
  * @return 0 on success, or 1 if initialization or allocation fails.
  */
 int main() {
+
+    // seed rand
+    srand((unsigned int)time(NULL));
 
     // initialize msg store
     if (init_msg_store() != 0) {
