@@ -62,20 +62,20 @@ int init_msg_store() {
     FILE* fp;
     fp = fopen(CSV_FILE, "w");
     if (fp == NULL) {
-        perror("Error opening file");
+        perror("init_msg_store: Error opening file");
         return 1;
     }
 
     // write headers
     if (fprintf(fp, "id,timestamp,sender,receiver,content,delivered\n") < 0) {
-        perror("Error writing to file");
+        perror("init_msg_store: Error writing to file");
         fclose(fp);
         return 1;
     }
 
     // close file
     if (fclose(fp) != 0) {
-        perror("Error closing file");
+        perror("init_msg_store: Error closing file");
         return 1;
     }
 
@@ -98,13 +98,13 @@ int init_msg_store() {
  */
 message_t* create_msg(const char* sender, const char* receiver, const char* content) {
     if (!sender || !receiver || !content) {
-        fprintf(stderr, "Sender or receiver or content is null\n");
+        fprintf(stderr, "create_msg: Sender or receiver or content is null\n");
         return NULL;
     }
 
     message_t *msg = malloc(sizeof *msg);
     if (!msg) {
-        fprintf(stderr, "Error allocating memory for message structure\n");
+        fprintf(stderr, "create_msg: Error allocating memory for message structure\n");
         return NULL;
     }
 
@@ -139,7 +139,7 @@ int store_msg(const message_t* msg) {
 
     // input validation
     if (msg == NULL) {
-        fprintf(stderr, "Message is null\n");
+        fprintf(stderr, "store_msg: Message is null\n");
         return 1;
     }
 
@@ -147,7 +147,7 @@ int store_msg(const message_t* msg) {
     FILE* fp;
     fp = fopen(CSV_FILE, "a");
     if (fp == NULL) {
-        perror("Error opening file");
+        perror("store_msg: Error opening file");
         return 1;
     }
 
@@ -161,14 +161,14 @@ int store_msg(const message_t* msg) {
             msg->content.receiver,
             msg->content.content,
             msg->content.delivered ? "true" : "false") < 0) {
-        perror("Error writing to file");
+        perror("store_msg: Error writing to file");
         fclose(fp);
         return 1;
     }
 
     // close file
     if (fclose(fp) != 0) {
-        perror("Error closing file");
+        perror("store_msg: Error closing file");
         return 1;
     }
 
@@ -196,7 +196,7 @@ message_t* retrieve_msg(int id) {
 
     FILE* fp = fopen(CSV_FILE, "r");
     if (!fp) {
-        perror("Error opening file");
+        perror("retrieve_msg: Error opening file");
         return NULL;
     }
 
@@ -273,15 +273,49 @@ void replace_rand(cache_t *cache, const message_t *msg) {
     // pick random index to replace
     int victim = rand() % CACHE_SIZE;
 
+    // replace msg
     cache_entry_t *entry = &cache->entries[victim];
-
-    // replace msg in cache
     entry->msg = *msg;
+    entry->occupied = true;
     cache->use_counter++;
     entry->last_used = cache->use_counter;
-
 }
 
+// replaces the most recently used msg in given cache with given msg
+void replace_mru(cache_t *cache, const message_t *msg) {
+
+    // input validation
+    if (!cache || !msg) {
+        fprintf(stderr, "replace_mru: cache or msg is NULL\n");
+        return;
+    }
+
+    // find the entry with the largest last_used value
+    unsigned long long max_last_used = 0;
+    int mru_index = -1;
+
+    for (int i = 0; i < CACHE_SIZE; i++) {
+        cache_entry_t *entry = &cache->entries[i];
+
+        // get index of MRU msg/cache entry
+        if (entry->occupied && entry->last_used > max_last_used) {
+            max_last_used = entry->last_used;
+            mru_index = i;
+        }
+    }
+
+    if (mru_index == -1) {
+        fprintf(stderr, "replace_mru: no occupied entries to replace\n");
+        return;
+    }
+
+    // replace msg
+    cache_entry_t *victim = &cache->entries[mru_index];
+    victim->msg = *msg;
+    victim->occupied = true;
+    cache->use_counter++;
+    victim->last_used = cache->use_counter;
+}
 
 /**
  * @brief Main entry point for message store demonstration.
