@@ -263,9 +263,25 @@ message_t* retrieve_msg(int id) {
 
 // replaces a random message from the given cache with the given message
 void replace_rand(cache_t *cache, const message_t *msg) {
+
+    // input validation
+    if (!cache || !msg) {
+        fprintf(stderr, "replace_rand: cache or msg is NULL\n");
+        return;
+    }
+
+    // pick random index to replace
     int victim = rand() % CACHE_SIZE;
 
+    cache_entry_t *entry = &cache->entries[victim];
+
+    // replace msg in cache
+    entry->msg = *msg;
+    cache->use_counter++;
+    entry->last_used = cache->use_counter;
+
 }
+
 
 /**
  * @brief Main entry point for message store demonstration.
