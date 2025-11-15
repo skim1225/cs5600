@@ -34,6 +34,12 @@ typedef struct {
     char padding[MSG_SIZE - sizeof(msg_content_t)];
 } message_t;
 
+// PART 1: DESIGN A CACHE S.T. SOME NUMBER OF MESSAGES ARE STORED IN A PAGED STRUCTURE IN MEMORY
+
+// TODO: Create appropriate lookup data structures to facilitate finding messages in the cache.
+// In your code, thoroughly describe your strategy and design and why you chose it.
+// Mention alternative designs and why you did not consider them.
+
 typedef struct {
     bool occupied;
     message_t msg;
@@ -44,6 +50,11 @@ typedef struct {
     cache_entry_t entries[CACHE_SIZE];
     unsigned long long use_counter;
 } cache_t;
+
+typedef enum {
+    CACHE_POLICY_RANDOM,
+    CACHE_POLICY_MRU
+} cache_policy_t;
 
 
 /**
@@ -317,6 +328,49 @@ void replace_mru(cache_t *cache, const message_t *msg) {
     victim->last_used = cache->use_counter;
 }
 
+// general func for inserting into cache
+void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
+
+    // input validation
+    if (!cache || !msg) {
+        fprintf(stderr, "cache_insert: cache or msg is NULL\n");
+        return;
+    }
+
+    // find unoccupied cache index
+    int index = -1;
+    for (int i = 0; i < CACHE_SIZE; i++) {
+        if (!cache->entries[i].occupied) {
+            index = i;
+            break;
+        }
+    }
+
+    // if index, add msg to cache
+    if (index >= 0) {
+        cache_entry_t *entry = &cache->entries[index];
+        entry->occupied = true;
+        entry->msg = *msg;
+        cache->use_counter++;
+        entry->last_used = cache->use_counter;
+        return;
+    }
+
+    // if cache full, replace entry w some algorithm
+    switch (policy) {
+        case CACHE_POLICY_RANDOM:
+            replace_rand(cache, msg);
+            break;
+        case CACHE_POLICY_MRU:
+            replace_mru(cache, msg);
+            break;
+        default:
+            fprintf(stderr, "cache_insert: unknown policy, defaulting to random.\n");
+            replace_rand(cache, msg);
+            break;
+    }
+}
+
 /**
  * @brief Main entry point for message store demonstration.
  *
@@ -338,18 +392,13 @@ int main() {
         return 1;
     }
 
+    // init cache
+    cache_t g_cache;
+
     // create some msgs
     message_t *m1 = create_msg("alice", "bob", "hi bob!!!");
     message_t *m2 = create_msg("carol", "dave", "hi dave from carol");
     message_t *m3 = create_msg("eve", "faith", "testing testing");
-
-    if (!m1 || !m2 || !m3) {
-        fprintf(stderr, "Error creating messages.\n");
-        free(m1);
-        free(m2);
-        free(m3);
-        return 1;
-    }
 
     // save some msgs to msg store
     store_msg(m1);
@@ -371,10 +420,18 @@ int main() {
         printf("Message with id=%d not found.\n", target_id);
     }
 
+    // RANDOM REPLACEMENT TEST
+    // number of cache hits per 1000 random message accesses
+    // number of cache misses per 1000 random message accesses
+    // cache hit ratio per 1000 random message accesses
+
+    // MRU REPLACEMENT TEST
+    // number of cache hits per 1000 random message accesses
+    // number of cache misses per 1000 random message accesses
+    // cache hit ratio per 1000 random message accesses
+
     // cleanup
-    free(m1);
-    free(m2);
-    free(m3);
+    // TODO: FREE() ALL CREATED MESSAGES
 
     printf("Program completed successfully.\n");
     return 0;
