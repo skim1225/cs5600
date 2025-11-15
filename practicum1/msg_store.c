@@ -14,11 +14,15 @@
 #include <time.h>
 #include <stdbool.h>
 
+#include "cache.h"
+
 #define CSV_FILE "messages.csv"
 #define MSG_SIZE 1024
 #define CACHE_SIZE 16
 
 int global_id = 1;
+static cache_t g_cache;
+static cache_policy_t g_cache_policy = CACHE_POLICY_RANDOM; // default to random
 
 typedef struct {
     int id;
@@ -33,28 +37,6 @@ typedef struct {
     msg_content_t content;
     char padding[MSG_SIZE - sizeof(msg_content_t)];
 } message_t;
-
-// PART 1: DESIGN A CACHE S.T. SOME NUMBER OF MESSAGES ARE STORED IN A PAGED STRUCTURE IN MEMORY
-
-// TODO: Create appropriate lookup data structures to facilitate finding messages in the cache.
-// In your code, thoroughly describe your strategy and design and why you chose it.
-// Mention alternative designs and why you did not consider them.
-
-typedef struct {
-    bool occupied;
-    message_t msg;
-    unsigned long long last_used;
-} cache_entry_t;
-
-typedef struct {
-    cache_entry_t entries[CACHE_SIZE];
-    unsigned long long use_counter;
-} cache_t;
-
-typedef enum {
-    CACHE_POLICY_RANDOM,
-    CACHE_POLICY_MRU
-} cache_policy_t;
 
 
 /**
@@ -183,6 +165,9 @@ int store_msg(const message_t* msg) {
         return 1;
     }
 
+    // insert msg into cache
+    cache_insert(&g_cache, msg, g_cache_policy);
+
     printf("Message added to store.\n");
     return 0;
 }
@@ -272,105 +257,6 @@ message_t* retrieve_msg(int id) {
     return NULL;
 }
 
-// replaces a random message from the given cache with the given message
-void replace_rand(cache_t *cache, const message_t *msg) {
-
-    // input validation
-    if (!cache || !msg) {
-        fprintf(stderr, "replace_rand: cache or msg is NULL\n");
-        return;
-    }
-
-    // pick random index to replace
-    int victim = rand() % CACHE_SIZE;
-
-    // replace msg
-    cache_entry_t *entry = &cache->entries[victim];
-    entry->msg = *msg;
-    entry->occupied = true;
-    cache->use_counter++;
-    entry->last_used = cache->use_counter;
-}
-
-// replaces the most recently used msg in given cache with given msg
-void replace_mru(cache_t *cache, const message_t *msg) {
-
-    // input validation
-    if (!cache || !msg) {
-        fprintf(stderr, "replace_mru: cache or msg is NULL\n");
-        return;
-    }
-
-    // find the entry with the largest last_used value
-    unsigned long long max_last_used = 0;
-    int mru_index = -1;
-
-    for (int i = 0; i < CACHE_SIZE; i++) {
-        cache_entry_t *entry = &cache->entries[i];
-
-        // get index of MRU msg/cache entry
-        if (entry->occupied && entry->last_used > max_last_used) {
-            max_last_used = entry->last_used;
-            mru_index = i;
-        }
-    }
-
-    if (mru_index == -1) {
-        fprintf(stderr, "replace_mru: no occupied entries to replace\n");
-        return;
-    }
-
-    // replace msg
-    cache_entry_t *victim = &cache->entries[mru_index];
-    victim->msg = *msg;
-    victim->occupied = true;
-    cache->use_counter++;
-    victim->last_used = cache->use_counter;
-}
-
-// general func for inserting into cache
-void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
-
-    // input validation
-    if (!cache || !msg) {
-        fprintf(stderr, "cache_insert: cache or msg is NULL\n");
-        return;
-    }
-
-    // find unoccupied cache index
-    int index = -1;
-    for (int i = 0; i < CACHE_SIZE; i++) {
-        if (!cache->entries[i].occupied) {
-            index = i;
-            break;
-        }
-    }
-
-    // if index, add msg to cache
-    if (index >= 0) {
-        cache_entry_t *entry = &cache->entries[index];
-        entry->occupied = true;
-        entry->msg = *msg;
-        cache->use_counter++;
-        entry->last_used = cache->use_counter;
-        return;
-    }
-
-    // if cache full, replace entry w some algorithm
-    switch (policy) {
-        case CACHE_POLICY_RANDOM:
-            replace_rand(cache, msg);
-            break;
-        case CACHE_POLICY_MRU:
-            replace_mru(cache, msg);
-            break;
-        default:
-            fprintf(stderr, "cache_insert: unknown policy, defaulting to random.\n");
-            replace_rand(cache, msg);
-            break;
-    }
-}
-
 /**
  * @brief Main entry point for message store demonstration.
  *
@@ -420,12 +306,16 @@ int main() {
         printf("Message with id=%d not found.\n", target_id);
     }
 
+    g_cache_policy = CACHE_POLICY_RANDOM;
+
     // RANDOM REPLACEMENT TEST
+    g_cache_policy = CACHE_POLICY_RANDOM;
     // number of cache hits per 1000 random message accesses
     // number of cache misses per 1000 random message accesses
     // cache hit ratio per 1000 random message accesses
 
     // MRU REPLACEMENT TEST
+    g_cache_policy = CACHE_POLICY_MRU;
     // number of cache hits per 1000 random message accesses
     // number of cache misses per 1000 random message accesses
     // cache hit ratio per 1000 random message accesses
