@@ -85,7 +85,7 @@ static void test_store_and_retrieve(void) {
 
     printf("Stored 3 messages to disk and cache.\n");
 
-    // retrieve 1 msg
+    // retrieve 1 msg from cache
     int target_id = m2->content.id;
     message_t *retrieved = retrieve_msg(target_id);
     if (retrieved) {
