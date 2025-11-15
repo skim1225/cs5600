@@ -10,11 +10,11 @@
 #ifndef MSG_STORE_H
 #define MSG_STORE_H
 
-#include <time.h>
-#include <stdbool.h>
-#include "cache.h"
 #include "message.h"
+#include "cache.h"
 
+extern cache_t g_cache;
+extern cache_policy_t g_cache_policy;
 
 int init_msg_store(void);
 message_t *create_msg(const char *sender, const char *receiver, const char *content);

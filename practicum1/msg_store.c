@@ -16,8 +16,6 @@
 #include "cache.h"
 
 #define CSV_FILE "messages.csv"
-#define MSG_SIZE 1024
-#define CACHE_SIZE 16
 
 int global_id = 1;
 cache_t g_cache;

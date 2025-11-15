@@ -1,21 +1,12 @@
-# How to run program
-in terminal:
-```angular2html
-make
-```
-to compile the program
+PART 1: CACHE DESIGN
+Create appropriate lookup data structures to facilitate finding messages in the cache. In your code, thoroughly describe your strategy and design and why you chose it. Mention alternative designs and why you did not consider them.
 
-```
-make run
-```
-to run the program
-```angular2html
-make clean
-```
-to remove all generated files
+PART 3: TESTING STRATEGY
+TODO
 
-# How to know program is working
-- check that a file messages.csv is created
-- check that messages.csv contains 3 messages
-- check that each message in messages.csv has a unique id
-- check that the printed message retrieved in the terminal matches the data in the csv file
+PART 4: EVALUATION
+TODO
+Instrument your code and calculate the following cache metrics for each page replacement algorithm:
+number of cache hits per 1000 random message accesses
+number of cache misses per 1000 random message accesses
+cache hit ratio per 1000 random message accesses 

@@ -1,5 +1,5 @@
 /*
- * cache.h / Practicum 1
+ * cache.c / Practicum 1
  *
  * Sooji Kim / CS5600 / Northeastern University
  * Fall 25 / November 13, 2025
@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "cache.h"
 
 void cache_init(cache_t *cache) {
@@ -37,8 +38,8 @@ void replace_mru(cache_t *cache, const message_t *msg);
 void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
 
     // input validation
-    if (!cache || !msg || !policy) {
-        fprintf(stderr, "cache_insert: cache, msg, or policy is NULL\n");
+    if (!cache || !msg ) {
+        fprintf(stderr, "cache_insert: cache or msg is NULL\n");
         return;
     }
 
