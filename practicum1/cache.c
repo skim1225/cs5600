@@ -33,7 +33,7 @@ message_t *cache_lookup(cache_t *cache, int id) {
 void replace_rand(cache_t *cache, const message_t *msg);
 void replace_mru(cache_t *cache, const message_t *msg);
 
-/* Main insert */
+// insert msg into cache
 void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
 
     // input validation

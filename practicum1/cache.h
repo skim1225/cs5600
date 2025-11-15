@@ -17,9 +17,10 @@
 #define CACHE_H
 
 #include <stdbool.h>
-#include "msg_store.h"
+#include "message.h"
 
 #define CACHE_SIZE 16
+
 
 typedef enum {
     CACHE_POLICY_RANDOM,
@@ -36,6 +37,8 @@ typedef struct {
     cache_entry_t entries[CACHE_SIZE];
     unsigned long long use_counter;
 } cache_t;
+
+extern cache_t g_cache;
 
 void cache_init(cache_t *cache);
 message_t *cache_lookup(cache_t *cache, int id);

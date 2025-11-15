@@ -20,8 +20,8 @@
 #define CACHE_SIZE 16
 
 int global_id = 1;
-static cache_t g_cache;
-static cache_policy_t g_cache_policy = CACHE_POLICY_RANDOM; // default to random
+cache_t g_cache;
+extern cache_policy_t g_cache_policy;
 
 /**
  * @brief Initialize the message store on disk.

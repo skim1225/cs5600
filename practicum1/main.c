@@ -12,6 +12,8 @@
 #include "msg_store.h"
 #include "cache.h"
 
+static cache_policy_t g_cache_policy = CACHE_POLICY_RANDOM; // default to random
+
 /**
  * @brief Main entry point for message store demonstration.
  *
