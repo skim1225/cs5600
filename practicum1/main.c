@@ -10,7 +10,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include "msg_store.h"
 #include "cache.h"
 
@@ -33,14 +32,14 @@ static void print_cache_state(const char *condition) {
     printf("\n");
 }
 
-/**
- * Basic test:
- * - initialize store and cache
- * - create and store a few messages
- * - retrieve one by ID and print it
- */
+// helper func to print lines btwn tests
+static void print_line() {
+    printf("----------------------------------------------------------");
+}
+
+// basic test to test cache/store init, create/store/retrieve msgs
 static void test_store_and_retrieve(void) {
-    printf("\nTEST: Basic store + retrieve\n");
+    printf("\nTEST: Basic store + retrieve\n\n");
 
     if (init_msg_store() != 0) {
         fprintf(stderr, "test_store_and_retrieve: init_msg_store failed\n");
@@ -62,7 +61,7 @@ static void test_store_and_retrieve(void) {
         return;
     }
 
-    // store messages (writes to both disk and cache)
+    // store messages (write to both disk and cache)
     store_msg(m1);
     store_msg(m2);
     store_msg(m3);
@@ -91,14 +90,9 @@ static void test_store_and_retrieve(void) {
     free(m3);
 }
 
-/**
- * Test RANDOM replacement:
- * - fill the cache with distinct IDs
- * - insert one more message
- * - verify that the new message is present and exactly one old one is gone
- */
+// test random replacement algo
 static void test_random_replacement(void) {
-    printf("\n[TEST] Random replacement\n");
+    printf("\nTEST: Random replacement\n");
 
     cache_init(&g_cache);
     g_cache_policy = CACHE_POLICY_RANDOM;
@@ -106,33 +100,36 @@ static void test_random_replacement(void) {
     // create CACHE_SIZE messages with IDs continuing from global_id
     message_t *msgs[CACHE_SIZE + 1];
     for (int i = 0; i < CACHE_SIZE + 1; i++) {
+
+        /*
         char sender[32];
         char receiver[32];
         snprintf(sender, sizeof sender, "sender%d", i);
         snprintf(receiver, sizeof receiver, "receiver%d", i);
+        */
 
-        msgs[i] = create_msg(sender, receiver, "random replacement test");
+        msgs[i] = create_msg("random_sender", "random_receiver", "random replacement test");
         if (!msgs[i]) {
             fprintf(stderr, "test_random_replacement: create_msg failed at i=%d\n", i);
-            // free already created
+            // mem mgmt
             for (int j = 0; j < i; j++) free(msgs[j]);
             return;
         }
     }
 
-    // insert first CACHE_SIZE messages into cache
+    // fill cache
     for (int i = 0; i < CACHE_SIZE; i++) {
         cache_insert(&g_cache, msgs[i], g_cache_policy);
     }
 
     print_cache_state("Cache after inserting CACHE_SIZE entries (RANDOM)");
 
-    // insert one more; this should evict one of the existing entries
+    // overfill cache
     cache_insert(&g_cache, msgs[CACHE_SIZE], g_cache_policy);
 
     print_cache_state("Cache after inserting one more entry (RANDOM)");
 
-    // check that the new ID is present somewhere
+    // check new id replaced old id in cache
     int new_id = msgs[CACHE_SIZE]->content.id;
     int found_new = 0;
     for (int i = 0; i < CACHE_SIZE; i++) {
@@ -145,7 +142,7 @@ static void test_random_replacement(void) {
     if (!found_new) {
         printf("ERROR: new message id=%d not found in cache after RANDOM replacement\n", new_id);
     } else {
-        printf("OK: new message id=%d is present after RANDOM replacement\n", new_id);
+        printf("PASS: new message id=%d in cache after RANDOM replacement\n", new_id);
     }
 
     // cleanup
@@ -154,27 +151,17 @@ static void test_random_replacement(void) {
     }
 }
 
-/**
- * Test MRU (LIFO) replacement:
- * - fill the cache with distinct IDs
- * - access them in a known order so that the last one accessed is MRU
- * - insert a new message
- * - verify the MRU ID was evicted
- */
+// test MRU algo
 static void test_mru_replacement(void) {
-    printf("\n[TEST] MRU (LIFO) replacement\n");
+    printf("\nTEST: Most Recently Used replacement\n");
 
     cache_init(&g_cache);
     g_cache_policy = CACHE_POLICY_MRU;
 
     message_t *msgs[CACHE_SIZE + 1];
     for (int i = 0; i < CACHE_SIZE + 1; i++) {
-        char sender[32];
-        char receiver[32];
-        snprintf(sender, sizeof sender, "mru_sender%d", i);
-        snprintf(receiver, sizeof receiver, "mru_receiver%d", i);
 
-        msgs[i] = create_msg(sender, receiver, "mru replacement test");
+        msgs[i] = create_msg("mru_sender", "mru_receiver", "mru replacement test");
         if (!msgs[i]) {
             fprintf(stderr, "test_mru_replacement: create_msg failed at i=%d\n", i);
             for (int j = 0; j < i; j++) free(msgs[j]);
@@ -182,12 +169,12 @@ static void test_mru_replacement(void) {
         }
     }
 
-    // insert first CACHE_SIZE messages
+    // fill cache
     for (int i = 0; i < CACHE_SIZE; i++) {
         cache_insert(&g_cache, msgs[i], g_cache_policy);
     }
 
-    // access them in order so the last one (index CACHE_SIZE-1) is MRU
+    // access all entries in order
     int mru_id = msgs[CACHE_SIZE - 1]->content.id;
     for (int i = 0; i < CACHE_SIZE; i++) {
         cache_lookup(&g_cache, msgs[i]->content.id);
@@ -195,12 +182,11 @@ static void test_mru_replacement(void) {
 
     print_cache_state("Cache before MRU replacement");
 
-    // insert new message; MRU policy should evict the most recently used (mru_id)
+    // overfill cache, 16th entry should be replaced
     cache_insert(&g_cache, msgs[CACHE_SIZE], g_cache_policy);
 
     print_cache_state("Cache after MRU replacement");
 
-    // verify that mru_id is no longer present
     int still_has_mru = 0;
     int new_id = msgs[CACHE_SIZE]->content.id;
     int has_new = 0;
@@ -215,13 +201,13 @@ static void test_mru_replacement(void) {
     if (still_has_mru) {
         printf("ERROR: MRU id=%d is still present after MRU replacement\n", mru_id);
     } else {
-        printf("OK: MRU id=%d was evicted as expected\n", mru_id);
+        printf("PASS: MRU id=%d was replaced as expected\n", mru_id);
     }
 
     if (!has_new) {
         printf("ERROR: new message id=%d not found in cache after MRU replacement\n", new_id);
     } else {
-        printf("OK: new message id=%d is present after MRU replacement\n", new_id);
+        printf("PASS: new message id=%d is present after MRU replacement\n", new_id);
     }
 
     // mem cleanup
@@ -235,9 +221,13 @@ int main(void) {
     srand((unsigned int)time(NULL));
 
     // test cache
+    print_line();
     test_store_and_retrieve();
+    print_line();
     test_random_replacement();
+    print_line();
     test_mru_replacement();
+    print_line();
 
     // collect replacement algo metrics
 

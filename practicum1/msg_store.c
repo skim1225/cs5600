@@ -150,7 +150,7 @@ int store_msg(const message_t* msg) {
     // insert msg into cache
     cache_insert(&g_cache, msg, g_cache_policy);
 
-    printf("Message added to store.\n");
+    printf("Message added to store and cache.\n");
     return 0;
 }
 
