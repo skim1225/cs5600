@@ -18,16 +18,16 @@ cache_policy_t g_cache_policy = CACHE_POLICY_RANDOM; //default to random
 
 // helper func to print cache
 static void print_cache_state(const char *condition) {
-    printf("\n%s \n", condition);
+    printf("\n%s:\n", condition);
     for (int i = 0; i < CACHE_SIZE; i++) {
         cache_entry_t *entry = &g_cache.entries[i];
         if (entry->occupied) {
-            printf("  slot %2d: id=%d last_used=%llu\n",
+            printf("index %2d: id=%d last_used=%llu\n",
                    i,
                    entry->msg.content.id,
                    entry->last_used);
         } else {
-            printf("  slot %2d: <empty>\n", i);
+            printf("index %2d: EMPTY\n", i);
         }
     }
     printf("\n");
@@ -39,43 +39,44 @@ static void print_cache_state(const char *condition) {
  * - create and store a few messages
  * - retrieve one by ID and print it
  */
-static void test_basic_store_and_retrieve(void) {
-    printf("\n[TEST] Basic store + retrieve\n");
+static void test_store_and_retrieve(void) {
+    printf("\nTEST: Basic store + retrieve\n");
 
     if (init_msg_store() != 0) {
-        fprintf(stderr, "test_basic_store_and_retrieve: init_msg_store failed\n");
+        fprintf(stderr, "test_store_and_retrieve: init_msg_store failed\n");
         return;
     }
 
+    // init cache
     cache_init(&g_cache);
     g_cache_policy = CACHE_POLICY_RANDOM;
 
-    // create some messages
-    message_t *m1 = create_msg("alice", "bob", "hi bob!!!");
-    message_t *m2 = create_msg("carol", "dave", "hi dave from carol");
-    message_t *m3 = create_msg("eve", "faith", "testing testing");
+    // create test msgs
+    message_t *m1 = create_msg("sender1", "recip1", "msg1");
+    message_t *m2 = create_msg("sender2", "recip2", "msg2");
+    message_t *m3 = create_msg("sender3", "recip3", "msg3");
 
     if (!m1 || !m2 || !m3) {
-        fprintf(stderr, "test_basic_store_and_retrieve: create_msg failed\n");
+        fprintf(stderr, "test_store_and_retrieve: create_msg failed\n");
         free(m1); free(m2); free(m3);
         return;
     }
 
-    // store messages (writes to disk and inserts into cache)
+    // store messages (writes to both disk and cache)
     store_msg(m1);
     store_msg(m2);
     store_msg(m3);
 
-    // retrieve one message by id (here we know m2 has id 2 if global_id started at 1)
+    // retrieve 1 msg
     int target_id = m2->content.id;
     message_t *retrieved = retrieve_msg(target_id);
     if (retrieved) {
         printf("Retrieved message (id=%d):\n", target_id);
-        printf("  Timestamp: %s", ctime(&retrieved->content.timestamp));
-        printf("  Sender:    %s\n", retrieved->content.sender);
-        printf("  Receiver:  %s\n", retrieved->content.receiver);
-        printf("  Content:   %s\n", retrieved->content.content);
-        printf("  Delivered: %s\n",
+        printf("Timestamp: %s", ctime(&retrieved->content.timestamp));
+        printf("Sender: %s\n", retrieved->content.sender);
+        printf("Receiver: %s\n", retrieved->content.receiver);
+        printf("Content: %s\n", retrieved->content.content);
+        printf("Delivered: %s\n",
                retrieved->content.delivered ? "true" : "false");
         free(retrieved);
     } else {
@@ -84,7 +85,7 @@ static void test_basic_store_and_retrieve(void) {
 
     print_cache_state("Cache after basic store + retrieve");
 
-    // cleanup the originals
+    // mem cleanup
     free(m1);
     free(m2);
     free(m3);
@@ -223,20 +224,24 @@ static void test_mru_replacement(void) {
         printf("OK: new message id=%d is present after MRU replacement\n", new_id);
     }
 
-    // cleanup
+    // mem cleanup
     for (int i = 0; i < CACHE_SIZE + 1; i++) {
         free(msgs[i]);
     }
 }
 
+// main func to run tests and collect metrics
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    test_basic_store_and_retrieve();
+    // test cache
+    test_store_and_retrieve();
     test_random_replacement();
     test_mru_replacement();
 
-    printf("\nAll tests completed.\n");
+    // collect replacement algo metrics
+
+    printf("\nProgram compelted successfully\n");
     return 0;
 }
 
