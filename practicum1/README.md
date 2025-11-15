@@ -1,5 +1,6 @@
 PART 1: CACHE DESIGN
 Create appropriate lookup data structures to facilitate finding messages in the cache. In your code, thoroughly describe your strategy and design and why you chose it. Mention alternative designs and why you did not consider them.
+TODO
 
 PART 3: TESTING STRATEGY
 TODO

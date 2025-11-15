@@ -11,6 +11,14 @@
 #include <stdlib.h>
 #include "cache.h"
 
+/**
+ * @brief Initialize the message cache.
+ *
+ * Sets the use counter to 0 and marks all cache entries as unoccupied
+ * with their last_used timestamp reset.
+ *
+ * @param cache Pointer to the cache structure to initialize.
+ */
 void cache_init(cache_t *cache) {
     cache->use_counter = 0;
     for (int i = 0; i < CACHE_SIZE; i++) {
@@ -19,6 +27,18 @@ void cache_init(cache_t *cache) {
     }
 }
 
+/**
+ * @brief Look up a message in the cache by message id.
+ *
+ * Scans the cache for an occupied entry with a matching message id.
+ * If found, updates the cache use counter and the entry's last_used
+ * value, then returns a pointer to the cached message.
+ *
+ * @param cache Pointer to the cache to search.
+ * @param id    Message identifier to look up.
+ *
+ * @return Pointer to the cached message on success, or NULL if not found.
+ */
 message_t *cache_lookup(cache_t *cache, int id) {
     for (int i = 0; i < CACHE_SIZE; i++) {
         cache_entry_t *entry = &cache->entries[i];
@@ -31,10 +51,43 @@ message_t *cache_lookup(cache_t *cache, int id) {
     return NULL;
 }
 
+/**
+ * @brief Replace a random cache entry with a new message.
+ *
+ * Selects a random index in the cache and overwrites that entry
+ * with the provided message, updating occupancy and usage metadata.
+ *
+ * @param cache Pointer to the cache in which to perform the replacement.
+ * @param msg   Pointer to the message to insert into the cache.
+ */
 void replace_rand(cache_t *cache, const message_t *msg);
+
+/**
+ * @brief Replace the most recently used (MRU) cache entry with a new message.
+ *
+ * Finds the cache entry with the largest last_used value (i.e., most recently
+ * used) and overwrites that entry with the provided message, updating
+ * occupancy and usage metadata.
+ *
+ * @param cache Pointer to the cache in which to perform the replacement.
+ * @param msg   Pointer to the message to insert into the cache.
+ */
 void replace_mru(cache_t *cache, const message_t *msg);
 
-// insert msg into cache
+/**
+ * @brief Insert a message into the cache using the specified replacement policy.
+ *
+ * Attempts to place the message into an unused cache slot. If no free slot is
+ * available, uses the given replacement policy (random or MRU) to evict an
+ * existing entry and store the new message in its place.
+ *
+ * Performs basic input validation and logs an error to stderr if the cache
+ * or message pointers are NULL.
+ *
+ * @param cache  Pointer to the cache into which the message is inserted.
+ * @param msg    Pointer to the message to be cached.
+ * @param policy Cache replacement policy to use when the cache is full.
+ */
 void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
 
     // input validation
@@ -70,7 +123,16 @@ void cache_insert(cache_t *cache, const message_t *msg, cache_policy_t policy) {
     }
 }
 
-// replaces a random message from the given cache with the given message
+/**
+ * @brief Replace a random message from the cache with the given message.
+ *
+ * Performs basic input validation and selects a random cache index as the
+ * victim. The victim entry is overwritten with the provided message, marked
+ * as occupied, and its last_used value is updated.
+ *
+ * @param cache Pointer to the cache where replacement is performed.
+ * @param msg   Pointer to the message to insert into the selected entry.
+ */
 void replace_rand(cache_t *cache, const message_t *msg) {
 
     // input validation
@@ -90,7 +152,16 @@ void replace_rand(cache_t *cache, const message_t *msg) {
     entry->last_used = cache->use_counter;
 }
 
-// replaces the most recently used msg in given cache with given msg
+/**
+ * @brief Replace the most recently used message in the cache with the given message.
+ *
+ * Identifies the cache entry with the highest last_used value among occupied
+ * entries and overwrites that entry with the provided message. If no occupied
+ * entries exist, logs an error to stderr and returns without modification.
+ *
+ * @param cache Pointer to the cache where replacement is performed.
+ * @param msg   Pointer to the message to insert into the MRU entry.
+ */
 void replace_mru(cache_t *cache, const message_t *msg) {
 
     // input validation

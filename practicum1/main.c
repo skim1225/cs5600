@@ -15,7 +15,15 @@
 
 cache_policy_t g_cache_policy = CACHE_POLICY_RANDOM; //default to random
 
-// helper func to print cache
+/**
+ * @brief Print the current state of the global cache.
+ *
+ * Iterates over all cache entries and prints either the message ID and
+ * last_used value for occupied entries or "EMPTY" for unoccupied ones.
+ *
+ * @param condition Description of the current cache condition (e.g.,
+ *                  "before test", "after replacement") to label the output.
+ */
 static void print_cache_state(const char *condition) {
     printf("\n%s:\n", condition);
     for (int i = 0; i < CACHE_SIZE; i++) {
@@ -32,12 +40,21 @@ static void print_cache_state(const char *condition) {
     printf("\n");
 }
 
-// helper func to print lines btwn tests
+/**
+ * @brief Print a separator line for readability between test sections.
+ */
 static void print_line() {
     printf("----------------------------------------------------------\n");
 }
 
-// basic test to test cache/store init, create/store/retrieve msgs
+/**
+ * @brief Run a basic test of message storage and retrieval.
+ *
+ * Initializes the message store and cache, creates three test messages,
+ * stores them (writing to both disk and cache), then retrieves one message
+ * by ID. The function prints message details and the cache state, and
+ * performs basic memory cleanup.
+ */
 static void test_store_and_retrieve(void) {
     printf("\nTEST: Basic store + retrieve\n\n");
 
@@ -92,7 +109,14 @@ static void test_store_and_retrieve(void) {
     free(m3);
 }
 
-// test random replacement algo
+/**
+ * @brief Test the RANDOM cache replacement policy.
+ *
+ * Fills the cache with CACHE_SIZE messages, prints the cache state,
+ * then inserts one more message to trigger random replacement. Verifies
+ * that the new message is present in the cache afterward and reports
+ * pass/fail, then frees all allocated messages.
+ */
 static void test_random_replacement(void) {
     printf("\nTEST: Random replacement\n");
 
@@ -146,7 +170,15 @@ static void test_random_replacement(void) {
     }
 }
 
-// test MRU algo
+/**
+ * @brief Test the MRU (Most Recently Used) cache replacement policy.
+ *
+ * Fills the cache with CACHE_SIZE messages, then accesses each one in
+ * order to establish a well-defined MRU entry. After inserting an extra
+ * message to trigger MRU replacement, the function checks that the MRU
+ * message was evicted, validates the presence of the new message, and
+ * reports pass/fail before freeing all allocated messages.
+ */
 static void test_mru_replacement(void) {
     printf("\nTEST: Most Recently Used replacement\n");
 
@@ -211,7 +243,19 @@ static void test_mru_replacement(void) {
     }
 }
 
-// helper func to gather cache hit and miss metrics
+
+/**
+ * @brief Gather cache hit/miss metrics for a given replacement policy.
+ *
+ * Initializes the message store and cache, then creates and stores a fixed
+ * set of messages. Performs a series of random message accesses via
+ * retrieve_msg(), tracking global cache hit and miss counters. At the end,
+ * prints the number of hits, misses, and the overall hit ratio for the
+ * specified policy, then frees all allocated messages.
+ *
+ * @param policy Cache replacement policy (e.g., RANDOM or MRU) to evaluate.
+ * @param name   Human-readable name for the policy, used in printed output.
+ */
 static void gather_metrics(cache_policy_t policy, const char *name) {
 
     const int NUM_MESSAGES = 32;
@@ -287,7 +331,16 @@ static void gather_metrics(cache_policy_t policy, const char *name) {
 }
 
 
-// main func to run tests and collect metrics
+/**
+ * @brief Program entry point for the cache and store simulation.
+ *
+ * Seeds the random number generator, runs a series of functional tests
+ * for basic storage/retrieval and the RANDOM and MRU replacement policies,
+ * then gathers and prints cache metrics for each policy. Finally, prints
+ * a completion message and returns success.
+ *
+ * @return 0 on successful execution.
+ */
 int main(void) {
     srand((unsigned int)time(NULL));
 
