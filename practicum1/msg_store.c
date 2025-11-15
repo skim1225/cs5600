@@ -159,21 +159,36 @@ int store_msg(const message_t* msg) {
 /**
  * @brief Retrieve a stored message by its unique identifier.
  *
- * This function searches the CSV message store for a message with
- * the specified ID. If found, it constructs and returns a dynamically
- * allocated message_t object populated with the stored data.
+ * This function first searches the cache for a message with the specified ID.
+ * If not in cache, it then searches the CSV message store. If found, it constructs
+ * and returns a dynamically allocated message_t object populated with the stored data.
  *
  * @param id Integer identifier of the message to retrieve.
  * @return Pointer to a newly allocated message_t if found, or NULL
  *         if the message does not exist or an error occurs.
  */
 message_t* retrieve_msg(int id) {
+
     // input validation
     if (id < 0 || id > global_id) {
         fprintf(stderr, "retrieve_msg: invalid id\n");
         return NULL;
     }
 
+    // check in cache for msg
+    message_t *cached = cache_lookup(&g_cache, id);
+    if (cached) {
+        // Return a heap copy (caller frees)
+        message_t *result = malloc(sizeof *result);
+        if (!result) {
+            fprintf(stderr, "retrieve_msg: malloc failed (cache copy)\n");
+            return NULL;
+        }
+        *result = *cached;   // deep copy
+        return result;
+    }
+
+    // check disk for msg
     FILE* fp = fopen(CSV_FILE, "r");
     if (!fp) {
         perror("retrieve_msg: Error opening file");
@@ -188,7 +203,7 @@ message_t* retrieve_msg(int id) {
         return NULL;
     }
 
-    // iterate over rows of csv
+    // iterate over csv rows
     while (fgets(line_buf, sizeof line_buf, fp) != NULL) {
         size_t n = strlen(line_buf);
         while (n > 0 && (line_buf[n-1] == '\n' || line_buf[n-1] == '\r')) {
@@ -203,7 +218,6 @@ message_t* retrieve_msg(int id) {
         char *tok_content = strtok(NULL, ",");
         char *tok_deliv = strtok(NULL, ",");
 
-        // check if tokenizing worked
         if (!tok_id || !tok_ts || !tok_sender || !tok_receiver || !tok_content || !tok_deliv) {
             continue;
         }
@@ -213,8 +227,8 @@ message_t* retrieve_msg(int id) {
             continue;
         }
 
-        // Build result
-        message_t *msg = (message_t *)malloc(sizeof *msg);
+        // rebuild msg
+        message_t *msg = malloc(sizeof *msg);
         if (!msg) {
             fprintf(stderr, "retrieve_msg: malloc failed\n");
             fclose(fp);
@@ -226,17 +240,23 @@ message_t* retrieve_msg(int id) {
         msg->content.delivered = (strcmp(tok_deliv, "true") == 0);
 
         strncpy(msg->content.sender, tok_sender, sizeof msg->content.sender - 1);
-        msg->content.sender[sizeof msg->content.sender - 1] = '\0';
         strncpy(msg->content.receiver, tok_receiver, sizeof msg->content.receiver - 1);
-        msg->content.receiver[sizeof msg->content.receiver - 1] = '\0';
         strncpy(msg->content.content, tok_content, sizeof msg->content.content - 1);
+
+        msg->content.sender[sizeof msg->content.sender - 1] = '\0';
+        msg->content.receiver[sizeof msg->content.receiver - 1] = '\0';
         msg->content.content[sizeof msg->content.content - 1] = '\0';
 
         fclose(fp);
+
+        // add msg found in disk to cache
+        cache_insert(&g_cache, msg, g_cache_policy);
+
         return msg;
     }
 
-    // msg not found
     fclose(fp);
+
+    // msg not found
     return NULL;
 }
