@@ -15,6 +15,8 @@
 
 extern cache_t g_cache;
 extern cache_policy_t g_cache_policy;
+extern unsigned long long g_cache_hits;
+extern unsigned long long g_cache_misses;
 
 int init_msg_store(void);
 message_t *create_msg(const char *sender, const char *receiver, const char *content);

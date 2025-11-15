@@ -19,6 +19,10 @@
 
 int global_id = 1;
 cache_t g_cache;
+
+unsigned long long g_cache_hits = 0;
+unsigned long long g_cache_misses = 0;
+
 extern cache_policy_t g_cache_policy;
 
 /**
@@ -176,15 +180,21 @@ message_t* retrieve_msg(int id) {
     // check in cache for msg
     message_t *cached = cache_lookup(&g_cache, id);
     if (cached) {
-        // Return a heap copy (caller frees)
+
+        // cache hit counter
+        g_cache_hits++;
+
         message_t *result = malloc(sizeof *result);
         if (!result) {
             fprintf(stderr, "retrieve_msg: malloc failed (cache copy)\n");
             return NULL;
         }
-        *result = *cached;   // deep copy
+        *result = *cached;
         return result;
     }
+
+    // cache miss counter
+    g_cache_misses++;
 
     // check disk for msg
     FILE* fp = fopen(CSV_FILE, "r");

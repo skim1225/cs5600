@@ -220,7 +220,7 @@ static void test_mru_replacement(void) {
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    // test cache
+    // PART 3: TEST CACHE FUNCS
     print_line();
     test_store_and_retrieve();
     print_line();
@@ -229,9 +229,8 @@ int main(void) {
     test_mru_replacement();
     print_line();
 
-    // collect replacement algo metrics
+    // PART 4: EVALUATE REPLACEMENT ALGORITHMS
 
-    printf("\nProgram compelted successfully\n");
+    printf("\nProgram completed successfully\n");
     return 0;
 }
-
