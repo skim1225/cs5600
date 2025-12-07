@@ -1,7 +1,10 @@
-all: server client
-
 server: server.c
-	gcc server.c -o server
+	gcc -o server server.c -pthread
 
-client: client.c
-	gcc client.c -o client
+rfs: rfs.c
+	gcc -o rfs rfs.c
+
+all: server rfs
+
+clean:
+	rm -f server rfs
