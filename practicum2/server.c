@@ -2,9 +2,13 @@
  * server.c -- RFS server with:
  *   - Multi-threaded client support
  *   - WRITE with versioning
- *   - GET returning newest version
+ *   - GET returning newest version (or specific version via path)
  *   - RM removing all versions
  *   - LS listing all versions + timestamps
+ *   - STOP shutting down the server
+ *
+ * Sooji Kim | CS5600 | Northeastern University
+ * Fall 2025 | Dec 6 2025
  */
 
 #include <stdio.h>
@@ -20,54 +24,105 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define SERVER_PORT 2000
-#define SERVER_ROOT "./rfs_root"
+#include "server.h"
 
 static pthread_mutex_t fs_mutex = PTHREAD_MUTEX_INITIALIZER;
+static volatile int server_running = 1;
+static int listen_sock = -1;
 
-/* Receive exactly len bytes */
-static int recv_all(int sockfd, void *buf, size_t len)
+/**
+ * @brief Receive exactly @p len bytes from a socket.
+ *
+ * This helper repeatedly calls recv(2) until either @p len bytes
+ * have been read into @p buf from @p sockfd or an error/connection
+ * close is encountered.
+ *
+ * @param sockfd Connected client socket file descriptor.
+ * @param buf Destination buffer to fill with received bytes.
+ * @param len Number of bytes that must be received.
+ *
+ * @return 0 on success (all bytes received), or -1 on error or if
+ *         the connection is closed prematurely.
+ */
+int recv_all(int sockfd, void *buf, size_t len)
 {
-    uint8_t *p = buf;
+    uint8_t *p = (uint8_t *)buf;
     size_t total = 0;
     while (total < len)
     {
         ssize_t n = recv(sockfd, p + total, len - total, 0);
-        if (n < 0) { perror("recv"); return -1; }
-        if (n == 0) {
+        if (n < 0)
+        {
+            perror("recv");
+            return -1;
+        }
+        if (n == 0)
+        {
             fprintf(stderr, "recv_all: connection closed\n");
             return -1;
         }
-        total += n;
+        total += (size_t)n;
     }
     return 0;
 }
 
-/* Send exactly len bytes */
-static int send_all(int sockfd, const void *buf, size_t len)
+/**
+ * @brief Send exactly @p len bytes on a socket.
+ *
+ * This helper repeatedly calls send(2) until either @p len bytes
+ * from @p buf have been written to @p sockfd or an error/connection
+ * close is encountered.
+ *
+ * @param sockfd Connected client socket file descriptor.
+ * @param buf Source buffer containing data to send.
+ * @param len Number of bytes that must be sent.
+ *
+ * @return 0 on success (all bytes sent), or -1 on error or if
+ *         the connection is closed prematurely.
+ */
+int send_all(int sockfd, const void *buf, size_t len)
 {
-    const uint8_t *p = buf;
+    const uint8_t *p = (const uint8_t *)buf;
     size_t total = 0;
     while (total < len)
     {
         ssize_t n = send(sockfd, p + total, len - total, 0);
-        if (n < 0) { perror("send"); return -1; }
-        if (n == 0) {
+        if (n < 0)
+        {
+            perror("send");
+            return -1;
+        }
+        if (n == 0)
+        {
             fprintf(stderr, "send_all: connection closed\n");
             return -1;
         }
-        total += n;
+        total += (size_t)n;
     }
     return 0;
 }
 
-/* Ensure directory structure exists for full_path */
-static int ensure_directories(const char *full_path)
+/**
+ * @brief Ensure that all directories in a given path exist.
+ *
+ * Creates SERVER_ROOT if missing, then walks the path in
+ * @p full_path and creates intermediate directories as needed.
+ * The function assumes @p full_path begins with SERVER_ROOT.
+ *
+ * @param full_path Full path including SERVER_ROOT and the
+ *                  eventual file name.
+ *
+ * @return 0 on success, or -1 on any error (e.g., mkdir failure
+ *         other than EEXIST, or path too long).
+ */
+int ensure_directories(const char *full_path)
 {
     char tmp[1024];
     size_t len = strlen(full_path);
 
-    if (len >= sizeof(tmp)) return -1;
+    if (len >= sizeof(tmp))
+        return -1;
+
     strcpy(tmp, full_path);
 
     /* create rfs_root if missing */
@@ -88,7 +143,27 @@ static int ensure_directories(const char *full_path)
     return 0;
 }
 
-static void *handle_client(void *arg)
+/**
+ * @brief Thread entry point for handling a single client connection.
+ *
+ * This function processes one client request per connection. It reads
+ * a 5-byte command and executes one of:
+ *  - WRITE: store file with versioning (.vN) under SERVER_ROOT
+ *  - GET:   return requested file contents
+ *  - LS:    list all versions and timestamps for a path
+ *  - RM:    remove a file and all of its versions, or remove a directory
+ *  - STOP:  shut down the server (sets @c server_running to 0)
+ *
+ * Concurrency control over the underlying file system is provided by
+ * the global @c fs_mutex.
+ *
+ * @param arg Pointer to a dynamically allocated integer holding the
+ *            client socket file descriptor. This pointer is freed
+ *            inside the function.
+ *
+ * @return Always returns NULL (for pthreads API).
+ */
+void *handle_client(void *arg)
 {
     int client_sock = *(int *)arg;
     free(arg);
@@ -116,8 +191,8 @@ static void *handle_client(void *arg)
         uint32_t path_len  = ntohl(path_len_net);
         uint32_t file_size = ntohl(file_size_net);
 
-        char *remote_path = malloc(path_len + 1);
-        uint8_t *file_buf = malloc(file_size);
+        char *remote_path = (char *)malloc(path_len + 1);
+        uint8_t *file_buf = (uint8_t *)malloc(file_size);
 
         if (!remote_path || !file_buf)
         {
@@ -170,8 +245,8 @@ static void *handle_client(void *arg)
                 {
                     if (errno == ENOENT)
                     {
-                        rename(full_path, version_path);
-                        printf("Saved previous version as %s\n", version_path);
+                        if (rename(full_path, version_path) == 0)
+                            printf("Saved previous version as %s\n", version_path);
                         break;
                     }
                 }
@@ -214,7 +289,7 @@ static void *handle_client(void *arg)
         }
         uint32_t path_len = ntohl(path_len_net);
 
-        char *remote_path = malloc(path_len + 1);
+        char *remote_path = (char *)malloc(path_len + 1);
         if (!remote_path)
         {
             close(client_sock);
@@ -230,7 +305,8 @@ static void *handle_client(void *arg)
         remote_path[path_len] = '\0';
 
         char full_path[1024];
-        snprintf(full_path, sizeof(full_path), "%s/%s", SERVER_ROOT, remote_path);
+        snprintf(full_path, sizeof(full_path), "%s/%s",
+                 SERVER_ROOT, remote_path);
 
         printf("GET: %s\n", full_path);
 
@@ -247,13 +323,10 @@ static void *handle_client(void *arg)
             return NULL;
         }
 
-        fseek(fp, 0, SEEK_END);
-        long fsize = ftell(fp);
-        rewind(fp);
-
-        uint8_t *buf = malloc(fsize);
-        if (!buf)
+        if (fseek(fp, 0, SEEK_END) != 0)
         {
+            uint32_t status = htonl(2);
+            send_all(client_sock, &status, 4);
             fclose(fp);
             pthread_mutex_unlock(&fs_mutex);
             free(remote_path);
@@ -261,10 +334,44 @@ static void *handle_client(void *arg)
             return NULL;
         }
 
-        fread(buf, 1, fsize, fp);
-        fclose(fp);
+        long fsize = ftell(fp);
+        if (fsize < 0 || fsize > (long)UINT32_MAX)
+        {
+            uint32_t status = htonl(3);
+            send_all(client_sock, &status, 4);
+            fclose(fp);
+            pthread_mutex_unlock(&fs_mutex);
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+        rewind(fp);
 
+        uint8_t *buf = (uint8_t *)malloc((size_t)fsize);
+        if (!buf)
+        {
+            uint32_t status = htonl(4);
+            send_all(client_sock, &status, 4);
+            fclose(fp);
+            pthread_mutex_unlock(&fs_mutex);
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+
+        size_t read_bytes = fread(buf, 1, (size_t)fsize, fp);
+        fclose(fp);
         pthread_mutex_unlock(&fs_mutex);
+
+        if (read_bytes != (size_t)fsize)
+        {
+            uint32_t status = htonl(5);
+            send_all(client_sock, &status, 4);
+            free(remote_path);
+            free(buf);
+            close(client_sock);
+            return NULL;
+        }
 
         uint32_t status = htonl(0);
         send_all(client_sock, &status, 4);
@@ -293,7 +400,7 @@ static void *handle_client(void *arg)
         }
         uint32_t path_len = ntohl(path_len_net);
 
-        char *remote_path = malloc(path_len + 1);
+        char *remote_path = (char *)malloc(path_len + 1);
         if (!remote_path)
         {
             close(client_sock);
@@ -394,7 +501,8 @@ static void *handle_client(void *arg)
         while (1)
         {
             char v_full_path[1024];
-            snprintf(v_full_path, sizeof(v_full_path), "%s.v%d", full_path, version);
+            snprintf(v_full_path, sizeof(v_full_path), "%s.v%d",
+                     full_path, version);
 
             struct stat vst;
             if (stat(v_full_path, &vst) < 0)
@@ -411,9 +519,11 @@ static void *handle_client(void *arg)
                 char ts_buf[64];
                 struct tm tm_buf;
 
-                snprintf(name_buf, sizeof(name_buf), "%s.v%d", remote_path, version);
+                snprintf(name_buf, sizeof(name_buf),
+                         "%s.v%d", remote_path, version);
                 localtime_r(&vst.st_mtime, &tm_buf);
-                strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%d %H:%M:%S", &tm_buf);
+                strftime(ts_buf, sizeof(ts_buf),
+                         "%Y-%m-%d %H:%M:%S", &tm_buf);
 
                 uint32_t name_len = (uint32_t)strlen(name_buf);
                 uint32_t ts_len   = (uint32_t)strlen(ts_buf);
@@ -442,20 +552,36 @@ static void *handle_client(void *arg)
     }
 
     /*------------------------------------------------------------*/
-    /*                        RM (remove + versions)               */
+    /*                        RM (remove + versions)              */
     /*------------------------------------------------------------*/
     if (memcmp(cmd, "RM   ", 5) == 0)
     {
         uint32_t path_len_net;
-        recv_all(client_sock, &path_len_net, 4);
+        if (recv_all(client_sock, &path_len_net, 4) < 0)
+        {
+            close(client_sock);
+            return NULL;
+        }
         uint32_t path_len = ntohl(path_len_net);
 
-        char *remote_path = malloc(path_len + 1);
-        recv_all(client_sock, remote_path, path_len);
+        char *remote_path = (char *)malloc(path_len + 1);
+        if (!remote_path)
+        {
+            close(client_sock);
+            return NULL;
+        }
+
+        if (recv_all(client_sock, remote_path, path_len) < 0)
+        {
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
         remote_path[path_len] = '\0';
 
         char full_path[1024];
-        snprintf(full_path, sizeof(full_path), "%s/%s", SERVER_ROOT, remote_path);
+        snprintf(full_path, sizeof(full_path), "%s/%s",
+                 SERVER_ROOT, remote_path);
 
         printf("RM: %s\n", full_path);
 
@@ -518,38 +644,108 @@ static void *handle_client(void *arg)
         return NULL;
     }
 
+    /*------------------------------------------------------------*/
+    /*                        STOP (shutdown)                     */
+    /*------------------------------------------------------------*/
+    if (memcmp(cmd, "STOP ", 5) == 0)
+    {
+        printf("STOP command received — shutting down server.\n");
+
+        server_running = 0;
+
+        if (listen_sock >= 0)
+        {
+            close(listen_sock);
+            listen_sock = -1;
+        }
+
+        uint32_t status = htonl(0);
+        send_all(client_sock, &status, 4);
+
+        close(client_sock);
+        return NULL;
+    }
+
+    fprintf(stderr, "Unknown command received\n");
     close(client_sock);
     return NULL;
 }
 
+/**
+ * @brief Entry point for the RFS server.
+ *
+ * Initializes the server root directory, creates a listening socket,
+ * binds and listens on SERVER_PORT, and then enters an accept loop
+ * while @c server_running is non-zero.
+ *
+ * For each accepted client connection, a detached thread is spawned
+ * running handle_client(), which processes exactly one command per
+ * connection.
+ *
+ * The STOP command causes @c server_running to be set to 0 and the
+ * listening socket to be closed, allowing the main loop to exit
+ * cleanly.
+ *
+ * @return 0 on normal shutdown, or 1 if a critical socket, bind, or
+ *         listen error occurs at startup.
+ */
 int main(void)
 {
     mkdir(SERVER_ROOT, 0755);
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0)
+    {
+        perror("socket");
+        return 1;
+    }
 
     int opt = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    struct sockaddr_in addr = {0};
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+
     addr.sin_family      = AF_INET;
     addr.sin_port        = htons(SERVER_PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    bind(sock, (struct sockaddr *)&addr, sizeof(addr));
-    listen(sock, 16);
+    if (bind(listen_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
+        perror("bind");
+        close(listen_sock);
+        return 1;
+    }
+
+    if (listen(listen_sock, 16) < 0)
+    {
+        perror("listen");
+        close(listen_sock);
+        return 1;
+    }
 
     printf("Server running at port %d\n", SERVER_PORT);
 
-    while (1)
+    while (server_running)
     {
         struct sockaddr_in caddr;
         socklen_t clen = sizeof(caddr);
 
-        int client = accept(sock, (struct sockaddr *)&caddr, &clen);
+        int client = accept(listen_sock, (struct sockaddr *)&caddr, &clen);
+        if (!server_running)
+            break;
 
-        int *arg = malloc(sizeof(int));
-        if (!arg) {
+        if (client < 0)
+        {
+            if (!server_running)
+                break;
+            perror("accept");
+            continue;
+        }
+
+        int *arg = (int *)malloc(sizeof(int));
+        if (!arg)
+        {
             perror("malloc");
             close(client);
             continue;
@@ -566,4 +762,10 @@ int main(void)
         }
         pthread_detach(tid);
     }
+
+    if (listen_sock >= 0)
+        close(listen_sock);
+
+    printf("Server shutting down.\n");
+    return 0;
 }
