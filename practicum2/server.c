@@ -4,6 +4,7 @@
  *   - WRITE with versioning
  *   - GET returning newest version
  *   - RM removing all versions
+ *   - LS listing all versions + timestamps
  */
 
 #include <stdio.h>
@@ -17,6 +18,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 
 #define SERVER_PORT 2000
 #define SERVER_ROOT "./rfs_root"
@@ -34,6 +36,24 @@ static int recv_all(int sockfd, void *buf, size_t len)
         if (n < 0) { perror("recv"); return -1; }
         if (n == 0) {
             fprintf(stderr, "recv_all: connection closed\n");
+            return -1;
+        }
+        total += n;
+    }
+    return 0;
+}
+
+/* Send exactly len bytes */
+static int send_all(int sockfd, const void *buf, size_t len)
+{
+    const uint8_t *p = buf;
+    size_t total = 0;
+    while (total < len)
+    {
+        ssize_t n = send(sockfd, p + total, len - total, 0);
+        if (n < 0) { perror("send"); return -1; }
+        if (n == 0) {
+            fprintf(stderr, "send_all: connection closed\n");
             return -1;
         }
         total += n;
@@ -93,7 +113,7 @@ static void *handle_client(void *arg)
             return NULL;
         }
 
-        uint32_t path_len = ntohl(path_len_net);
+        uint32_t path_len  = ntohl(path_len_net);
         uint32_t file_size = ntohl(file_size_net);
 
         char *remote_path = malloc(path_len + 1);
@@ -102,6 +122,8 @@ static void *handle_client(void *arg)
         if (!remote_path || !file_buf)
         {
             perror("malloc");
+            free(remote_path);
+            free(file_buf);
             close(client_sock);
             return NULL;
         }
@@ -218,7 +240,7 @@ static void *handle_client(void *arg)
         if (!fp)
         {
             uint32_t status = htonl(1);
-            send(client_sock, &status, 4, 0);
+            send_all(client_sock, &status, 4);
             pthread_mutex_unlock(&fs_mutex);
             free(remote_path);
             close(client_sock);
@@ -230,21 +252,191 @@ static void *handle_client(void *arg)
         rewind(fp);
 
         uint8_t *buf = malloc(fsize);
+        if (!buf)
+        {
+            fclose(fp);
+            pthread_mutex_unlock(&fs_mutex);
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+
         fread(buf, 1, fsize, fp);
         fclose(fp);
 
         pthread_mutex_unlock(&fs_mutex);
 
         uint32_t status = htonl(0);
-        send(client_sock, &status, 4, 0);
+        send_all(client_sock, &status, 4);
 
-        uint32_t fsize_net = htonl(fsize);
-        send(client_sock, &fsize_net, 4, 0);
+        uint32_t fsize_net = htonl((uint32_t)fsize);
+        send_all(client_sock, &fsize_net, 4);
 
-        send(client_sock, buf, fsize, 0);
+        send_all(client_sock, buf, (size_t)fsize);
 
         free(remote_path);
         free(buf);
+        close(client_sock);
+        return NULL;
+    }
+
+    /*------------------------------------------------------------*/
+    /*                        LS (list versions)                  */
+    /*------------------------------------------------------------*/
+    if (memcmp(cmd, "LS   ", 5) == 0)
+    {
+        uint32_t path_len_net;
+        if (recv_all(client_sock, &path_len_net, 4) < 0)
+        {
+            close(client_sock);
+            return NULL;
+        }
+        uint32_t path_len = ntohl(path_len_net);
+
+        char *remote_path = malloc(path_len + 1);
+        if (!remote_path)
+        {
+            close(client_sock);
+            return NULL;
+        }
+
+        if (recv_all(client_sock, remote_path, path_len) < 0)
+        {
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+        remote_path[path_len] = '\0';
+
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s", SERVER_ROOT, remote_path);
+
+        printf("LS: %s\n", full_path);
+
+        pthread_mutex_lock(&fs_mutex);
+
+        uint32_t count = 0;
+        struct stat st;
+
+        /* Base file (current version) */
+        if (stat(full_path, &st) == 0 && S_ISREG(st.st_mode))
+            count++;
+
+        /* Versioned files: file.v1, file.v2, ... */
+        int version = 1;
+        while (1)
+        {
+            char v_full_path[1024];
+            snprintf(v_full_path, sizeof(v_full_path), "%s.v%d", full_path, version);
+
+            struct stat vst;
+            if (stat(v_full_path, &vst) < 0)
+            {
+                if (errno == ENOENT)
+                    break;
+                else
+                    break;
+            }
+
+            if (S_ISREG(vst.st_mode))
+                count++;
+
+            version++;
+        }
+
+        uint32_t count_net = htonl(count);
+        if (send_all(client_sock, &count_net, 4) < 0)
+        {
+            pthread_mutex_unlock(&fs_mutex);
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+
+        if (count == 0)
+        {
+            pthread_mutex_unlock(&fs_mutex);
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+
+        /* Send base file info, if it exists */
+        if (stat(full_path, &st) == 0 && S_ISREG(st.st_mode))
+        {
+            char name_buf[1024];
+            char ts_buf[64];
+            struct tm tm_buf;
+
+            snprintf(name_buf, sizeof(name_buf), "%s", remote_path);
+            localtime_r(&st.st_mtime, &tm_buf);
+            strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%d %H:%M:%S", &tm_buf);
+
+            uint32_t name_len = (uint32_t)strlen(name_buf);
+            uint32_t ts_len   = (uint32_t)strlen(ts_buf);
+            uint32_t name_len_net = htonl(name_len);
+            uint32_t ts_len_net   = htonl(ts_len);
+
+            if (send_all(client_sock, &name_len_net, 4) < 0 ||
+                send_all(client_sock, &ts_len_net, 4) < 0 ||
+                send_all(client_sock, name_buf, name_len) < 0 ||
+                send_all(client_sock, ts_buf, ts_len) < 0)
+            {
+                pthread_mutex_unlock(&fs_mutex);
+                free(remote_path);
+                close(client_sock);
+                return NULL;
+            }
+        }
+
+        /* Send each version file info */
+        version = 1;
+        while (1)
+        {
+            char v_full_path[1024];
+            snprintf(v_full_path, sizeof(v_full_path), "%s.v%d", full_path, version);
+
+            struct stat vst;
+            if (stat(v_full_path, &vst) < 0)
+            {
+                if (errno == ENOENT)
+                    break;
+                else
+                    break;
+            }
+
+            if (S_ISREG(vst.st_mode))
+            {
+                char name_buf[1024];
+                char ts_buf[64];
+                struct tm tm_buf;
+
+                snprintf(name_buf, sizeof(name_buf), "%s.v%d", remote_path, version);
+                localtime_r(&vst.st_mtime, &tm_buf);
+                strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%d %H:%M:%S", &tm_buf);
+
+                uint32_t name_len = (uint32_t)strlen(name_buf);
+                uint32_t ts_len   = (uint32_t)strlen(ts_buf);
+                uint32_t name_len_net = htonl(name_len);
+                uint32_t ts_len_net   = htonl(ts_len);
+
+                if (send_all(client_sock, &name_len_net, 4) < 0 ||
+                    send_all(client_sock, &ts_len_net, 4) < 0 ||
+                    send_all(client_sock, name_buf, name_len) < 0 ||
+                    send_all(client_sock, ts_buf, ts_len) < 0)
+                {
+                    pthread_mutex_unlock(&fs_mutex);
+                    free(remote_path);
+                    close(client_sock);
+                    return NULL;
+                }
+            }
+
+            version++;
+        }
+
+        pthread_mutex_unlock(&fs_mutex);
+        free(remote_path);
         close(client_sock);
         return NULL;
     }
@@ -319,7 +511,7 @@ static void *handle_client(void *arg)
         pthread_mutex_unlock(&fs_mutex);
 
         uint32_t net = htonl(status);
-        send(client_sock, &net, 4, 0);
+        send_all(client_sock, &net, 4);
 
         free(remote_path);
         close(client_sock);
@@ -340,8 +532,8 @@ int main(void)
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in addr = {0};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(SERVER_PORT);
+    addr.sin_family      = AF_INET;
+    addr.sin_port        = htons(SERVER_PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
 
     bind(sock, (struct sockaddr *)&addr, sizeof(addr));
@@ -357,10 +549,21 @@ int main(void)
         int client = accept(sock, (struct sockaddr *)&caddr, &clen);
 
         int *arg = malloc(sizeof(int));
+        if (!arg) {
+            perror("malloc");
+            close(client);
+            continue;
+        }
         *arg = client;
 
         pthread_t tid;
-        pthread_create(&tid, NULL, handle_client, arg);
+        if (pthread_create(&tid, NULL, handle_client, arg) != 0)
+        {
+            perror("pthread_create");
+            free(arg);
+            close(client);
+            continue;
+        }
         pthread_detach(tid);
     }
 }
