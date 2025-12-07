@@ -4,6 +4,7 @@
  * Usage:
  *   ./rfs WRITE local-path [remote-path]
  *   ./rfs GET   remote-path [local-path]
+ *   ./rfs RM    remote-path
  *
  * For WRITE:
  *   - If remote-path is omitted, it defaults to local-path.
@@ -101,16 +102,15 @@ static int connect_to_server(void) {
     return sockfd;
 }
 
-/* Handle WRITE command */
+/* ---------- WRITE (unchanged) ---------- */
+
 static int do_write(const char *local_path, const char *remote_path) {
-    /* Open local file */
     FILE *fp = fopen(local_path, "rb");
     if (!fp) {
         perror("fopen local file");
         return 1;
     }
 
-    /* Get file size */
     if (fseek(fp, 0, SEEK_END) != 0) {
         perror("fseek");
         fclose(fp);
@@ -157,7 +157,6 @@ static int do_write(const char *local_path, const char *remote_path) {
 
     printf("Connected to server %s:%d (WRITE)\n", SERVER_IP, SERVER_PORT);
 
-    /* 1. Command "WRITE" */
     const char *cmd = "WRITE";
     if (send_all(sockfd, cmd, 5) < 0) {
         fprintf(stderr, "Failed to send WRITE command\n");
@@ -166,7 +165,6 @@ static int do_write(const char *local_path, const char *remote_path) {
         return 1;
     }
 
-    /* 2. Path length */
     uint32_t path_len = (uint32_t)strlen(remote_path);
     uint32_t path_len_net = htonl(path_len);
     if (send_all(sockfd, &path_len_net, sizeof(path_len_net)) < 0) {
@@ -176,7 +174,6 @@ static int do_write(const char *local_path, const char *remote_path) {
         return 1;
     }
 
-    /* 3. File size */
     uint32_t file_size_net = htonl(file_size);
     if (send_all(sockfd, &file_size_net, sizeof(file_size_net)) < 0) {
         fprintf(stderr, "Failed to send file size\n");
@@ -185,7 +182,6 @@ static int do_write(const char *local_path, const char *remote_path) {
         return 1;
     }
 
-    /* 4. Remote path */
     if (send_all(sockfd, remote_path, path_len) < 0) {
         fprintf(stderr, "Failed to send remote path\n");
         close(sockfd);
@@ -193,7 +189,6 @@ static int do_write(const char *local_path, const char *remote_path) {
         return 1;
     }
 
-    /* 5. File data */
     if (send_all(sockfd, file_buf, file_size) < 0) {
         fprintf(stderr, "Failed to send file data\n");
         close(sockfd);
@@ -209,11 +204,11 @@ static int do_write(const char *local_path, const char *remote_path) {
     return 0;
 }
 
-/* Handle GET command */
+/* ---------- GET (unchanged) ---------- */
+
 static int do_get(const char *remote_path, const char *maybe_local_path) {
     char local_path_buf[1024];
 
-    /* If local path omitted, use basename of remote in current directory */
     const char *local_path;
     if (maybe_local_path != NULL) {
         local_path = maybe_local_path;
@@ -234,7 +229,6 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
 
     printf("Connected to server %s:%d (GET)\n", SERVER_IP, SERVER_PORT);
 
-    /* 1. Command "GET  " (5 bytes) */
     const char cmd[5] = { 'G', 'E', 'T', ' ', ' ' };
     if (send_all(sockfd, cmd, 5) < 0) {
         fprintf(stderr, "Failed to send GET command\n");
@@ -242,7 +236,6 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
         return 1;
     }
 
-    /* 2. Path length */
     uint32_t path_len = (uint32_t)strlen(remote_path);
     uint32_t path_len_net = htonl(path_len);
     if (send_all(sockfd, &path_len_net, sizeof(path_len_net)) < 0) {
@@ -251,16 +244,12 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
         return 1;
     }
 
-    /* 3. Remote path */
     if (send_all(sockfd, remote_path, path_len) < 0) {
         fprintf(stderr, "Failed to send remote path\n");
         close(sockfd);
         return 1;
     }
 
-    /* ---- Receive response ---- */
-
-    /* 1. Status */
     uint32_t status_net;
     if (recv_all(sockfd, &status_net, sizeof(status_net)) < 0) {
         fprintf(stderr, "Failed to receive status\n");
@@ -275,7 +264,6 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
         return 1;
     }
 
-    /* 2. File size */
     uint32_t file_size_net;
     if (recv_all(sockfd, &file_size_net, sizeof(file_size_net)) < 0) {
         fprintf(stderr, "Failed to receive file size\n");
@@ -291,7 +279,6 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
         return 1;
     }
 
-    /* 3. File data */
     if (recv_all(sockfd, file_buf, file_size) < 0) {
         fprintf(stderr, "Failed to receive file data\n");
         free(file_buf);
@@ -301,7 +288,6 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
 
     close(sockfd);
 
-    /* Write to local file */
     FILE *fp = fopen(local_path, "wb");
     if (!fp) {
         perror("fopen local_path");
@@ -324,14 +310,81 @@ static int do_get(const char *remote_path, const char *maybe_local_path) {
     return 0;
 }
 
+/* ---------- RM with differentiated errors ---------- */
+
+static int do_rm(const char *remote_path) {
+    int sockfd = connect_to_server();
+    if (sockfd < 0) {
+        return 1;
+    }
+
+    printf("Connected to server %s:%d (RM)\n", SERVER_IP, SERVER_PORT);
+
+    /* 1. Command "RM   " (5 bytes) */
+    const char cmd[5] = { 'R', 'M', ' ', ' ', ' ' };
+    if (send_all(sockfd, cmd, 5) < 0) {
+        fprintf(stderr, "Failed to send RM command\n");
+        close(sockfd);
+        return 1;
+    }
+
+    /* 2. Path length */
+    uint32_t path_len = (uint32_t)strlen(remote_path);
+    uint32_t path_len_net = htonl(path_len);
+    if (send_all(sockfd, &path_len_net, sizeof(path_len_net)) < 0) {
+        fprintf(stderr, "Failed to send path length\n");
+        close(sockfd);
+        return 1;
+    }
+
+    /* 3. Remote path */
+    if (send_all(sockfd, remote_path, path_len) < 0) {
+        fprintf(stderr, "Failed to send remote path\n");
+        close(sockfd);
+        return 1;
+    }
+
+    /* 4. Receive status */
+    uint32_t status_net;
+    if (recv_all(sockfd, &status_net, sizeof(status_net)) < 0) {
+        fprintf(stderr, "Failed to receive RM status\n");
+        close(sockfd);
+        return 1;
+    }
+    close(sockfd);
+
+    uint32_t status = ntohl(status_net);
+    if (status == 0) {
+        printf("RM success: '%s' deleted on remote server\n", remote_path);
+        return 0;
+    }
+
+    if (status == 1) {
+        fprintf(stderr, "RM error: '%s' does not exist on remote server\n",
+                remote_path);
+    } else if (status == 2) {
+        fprintf(stderr, "RM error: directory '%s' is not empty (cannot remove)\n",
+                remote_path);
+    } else {
+        fprintf(stderr,
+                "RM error: could not delete '%s' on remote server (status=%u)\n",
+                remote_path, status);
+    }
+
+    return 1;
+}
+
+/* ---------- main ---------- */
+
 int main(int argc, char *argv[])
 {
     if (argc < 2) {
         fprintf(stderr,
             "Usage:\n"
             "  %s WRITE local-path [remote-path]\n"
-            "  %s GET   remote-path [local-path]\n",
-            argv[0], argv[0]);
+            "  %s GET   remote-path [local-path]\n"
+            "  %s RM    remote-path\n",
+            argv[0], argv[0], argv[0]);
         return 1;
     }
 
@@ -345,7 +398,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         const char *local_path  = argv[2];
-        const char *remote_path = (argc >= 4) ? argv[3] : argv[2]; /* default to local */
+        const char *remote_path = (argc >= 4) ? argv[3] : argv[2];
         return do_write(local_path, remote_path);
 
     } else if (strcmp(cmd, "GET") == 0) {
@@ -356,11 +409,23 @@ int main(int argc, char *argv[])
             return 1;
         }
         const char *remote_path = argv[2];
-        const char *local_path  = (argc >= 4) ? argv[3] : NULL;    /* default to current dir */
+        const char *local_path  = (argc >= 4) ? argv[3] : NULL;
         return do_get(remote_path, local_path);
 
+    } else if (strcmp(cmd, "RM") == 0) {
+        if (argc < 3) {
+            fprintf(stderr,
+                "Usage: %s RM remote-path\n",
+                argv[0]);
+            return 1;
+        }
+        const char *remote_path = argv[2];
+        return do_rm(remote_path);
+
     } else {
-        fprintf(stderr, "Unknown command: %s (expected WRITE or GET)\n", cmd);
+        fprintf(stderr,
+                "Unknown command: %s (expected WRITE, GET, or RM)\n",
+                cmd);
         return 1;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * server.c -- RFS server with WRITE and GET
+ * server.c -- RFS server with WRITE, GET, and RM
  */
 
 #include <stdio.h>
@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define SERVER_PORT 2000
 #define SERVER_ROOT "./rfs_root"
@@ -50,13 +51,11 @@ static int ensure_directories(const char *full_path) {
 
     strcpy(tmp, full_path);
 
-    /* Ensure root exists */
     if (mkdir(SERVER_ROOT, 0755) < 0 && errno != EEXIST) {
         perror("mkdir SERVER_ROOT");
         return -1;
     }
 
-    /* Create intermediate dirs after SERVER_ROOT/ */
     for (size_t i = strlen(SERVER_ROOT) + 1; i < len; i++) {
         if (tmp[i] == '/') {
             tmp[i] = '\0';
@@ -79,14 +78,13 @@ static void *handle_client(void *arg) {
 
     char cmd[5];
 
-    /* Read 5-byte command */
     if (recv_all(client_sock, cmd, 5) < 0) {
         fprintf(stderr, "Failed to read command\n");
         close(client_sock);
         return NULL;
     }
 
-    /* ---- WRITE ---- */
+    /* ---------- WRITE ---------- */
     if (memcmp(cmd, "WRITE", 5) == 0) {
         uint32_t path_len_net, file_size_net;
 
@@ -190,7 +188,7 @@ static void *handle_client(void *arg) {
         return NULL;
     }
 
-    /* ---- GET ---- */
+    /* ---------- GET ---------- */
     if (memcmp(cmd, "GET  ", 5) == 0) {
         uint32_t path_len_net;
         if (recv_all(client_sock, &path_len_net, sizeof(path_len_net)) < 0) {
@@ -232,11 +230,9 @@ static void *handle_client(void *arg) {
 
         printf("GET: '%s'\n", full_path);
 
-        /* Open file and read contents */
         pthread_mutex_lock(&fs_mutex);
         FILE *fp = fopen(full_path, "rb");
         if (!fp) {
-            /* status = 1 (error) */
             uint32_t status_net = htonl(1);
             send(client_sock, &status_net, sizeof(status_net), 0);
             pthread_mutex_unlock(&fs_mutex);
@@ -295,15 +291,12 @@ static void *handle_client(void *arg) {
             return NULL;
         }
 
-        /* status = 0 (OK) */
         uint32_t status_net = htonl(0);
         send(client_sock, &status_net, sizeof(status_net), 0);
 
-        /* send file_size */
         uint32_t file_size_net = htonl(file_size);
         send(client_sock, &file_size_net, sizeof(file_size_net), 0);
 
-        /* send file data */
         size_t total_sent = 0;
         while (total_sent < file_size) {
             ssize_t n = send(client_sock,
@@ -325,14 +318,93 @@ static void *handle_client(void *arg) {
         return NULL;
     }
 
-    /* Unknown command */
+    /* ---------- RM (files + empty dirs, with detailed status) ---------- */
+    if (memcmp(cmd, "RM   ", 5) == 0) {
+        uint32_t path_len_net;
+        if (recv_all(client_sock, &path_len_net, sizeof(path_len_net)) < 0) {
+            fprintf(stderr, "Failed to read path_len (RM)\n");
+            close(client_sock);
+            return NULL;
+        }
+        uint32_t path_len = ntohl(path_len_net);
+
+        if (path_len == 0 || path_len > 1000) {
+            fprintf(stderr, "Invalid path_len in RM: %u\n", path_len);
+            close(client_sock);
+            return NULL;
+        }
+
+        char *remote_path = malloc(path_len + 1);
+        if (!remote_path) {
+            perror("malloc remote_path");
+            close(client_sock);
+            return NULL;
+        }
+
+        if (recv_all(client_sock, remote_path, path_len) < 0) {
+            fprintf(stderr, "Failed to read remote_path (RM)\n");
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+        remote_path[path_len] = '\0';
+
+        char full_path[1024];
+        if (snprintf(full_path, sizeof(full_path), "%s/%s",
+                     SERVER_ROOT, remote_path) >= (int)sizeof(full_path)) {
+            fprintf(stderr, "Full path too long\n");
+            free(remote_path);
+            close(client_sock);
+            return NULL;
+        }
+
+        printf("RM: '%s'\n", full_path);
+
+        uint32_t status = 0;
+
+        pthread_mutex_lock(&fs_mutex);
+
+        struct stat st;
+        if (stat(full_path, &st) < 0) {
+            if (errno == ENOENT) {
+                status = 1;  /* not found */
+            } else {
+                status = 5;  /* generic stat error */
+            }
+        } else if (S_ISDIR(st.st_mode)) {
+            if (rmdir(full_path) < 0) {
+                if (errno == ENOTEMPTY || errno == EEXIST) {
+                    status = 2;  /* directory not empty */
+                } else {
+                    status = 3;  /* other directory error */
+                }
+            }
+        } else {
+            if (unlink(full_path) < 0) {
+                if (errno == ENOENT) {
+                    status = 1;  /* not found */
+                } else {
+                    status = 4;  /* other file error */
+                }
+            }
+        }
+
+        pthread_mutex_unlock(&fs_mutex);
+
+        uint32_t status_net = htonl(status);
+        send(client_sock, &status_net, sizeof(status_net), 0);
+
+        free(remote_path);
+        close(client_sock);
+        return NULL;
+    }
+
     fprintf(stderr, "Unknown command from client\n");
     close(client_sock);
     return NULL;
 }
 
 int main(void) {
-    /* Ensure root exists */
     if (mkdir(SERVER_ROOT, 0755) < 0 && errno != EEXIST) {
         perror("mkdir SERVER_ROOT");
         return 1;
@@ -345,8 +417,7 @@ int main(void) {
     }
 
     int optval = 1;
-    setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR,
-               &optval, sizeof(optval));
+    setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
